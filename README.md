@@ -1,5 +1,7 @@
 # AI 코딩 지뢰 도감
 
+**[English](README.en.md)** | 한국어
+
 **AI로 개발하다 실제로 밟은 함정들.**
 
 읽어서 배운 게 아니라 **밟아서 배운 것**만 모았다. 각 항목은 실제로 발생한 사고이고, 대부분 **대가를 치른 뒤에** 원인을 알았다.
@@ -75,12 +77,12 @@ Three rules run through the whole collection:
 
 | | Category | Topics |
 |---|---|---|
-| 01 | [Windows · PowerShell](mines/01-windows-powershell.md) | PS 5.1 CP949 corruption, BOM-less `.ps1`, native exe argument and stderr traps, encoding boundaries |
-| 02 | [Python · DB · data logic](mines/02-python-db.md) | Silent failure, "absent" vs "not found", identifier misuse, name matching, upsert reverting state |
-| 03 | [Git · automation · cron](mines/03-git-automation.md) | Silent auto-push, `pgrep` self-detection, stale lock files, fork limits, secret hygiene |
-| 04 | [Claude Code · AI agents](mines/04-claude-code-agent.md) | Hook path expansion, container repo regression, vanished artifacts, green-CI illusion |
-| 05 | [Deploy · infra · external APIs](mines/05-deploy-infra.md) | Symptomless rollback, missing COPY, sync-route timeouts, OAuth traps |
-| 06 | [Write APIs · not trusting the response](mines/06-write-api.md) | Five ways a success response lies, reading a 400 as "zero rows", partial updates silently ignored |
+| 01 | [Windows · PowerShell](mines/en/01-windows-powershell.md) | PS 5.1 CP949 corruption, BOM-less `.ps1`, native exe argument and stderr traps, encoding boundaries |
+| 02 | [Python · DB · data logic](mines/en/02-python-db.md) | Silent failure, "absent" vs "not found", identifier misuse, name matching, upsert reverting state |
+| 03 | [Git · automation · cron](mines/en/03-git-automation.md) | Silent auto-push, `pgrep` self-detection, stale lock files, fork limits, secret hygiene |
+| 04 | [Claude Code · AI agents](mines/en/04-claude-code-agent.md) | Hook path expansion, container repo regression, vanished artifacts, green-CI illusion |
+| 05 | [Deploy · infra · external APIs](mines/en/05-deploy-infra.md) | Symptomless rollback, missing COPY, sync-route timeouts, OAuth traps |
+| 06 | [Write APIs · not trusting the response](mines/en/06-write-api.md) | Five ways a success response lies, reading a 400 as "zero rows", partial updates silently ignored |
 
 ### Format
 
@@ -90,7 +92,7 @@ Symptom comes first on purpose. These traps look obvious once you know the cause
 
 `★` marks the one line that was actually paid for.
 
-Entries are written in Korean; the code, error messages, and commands are language-neutral and are the substance of most entries.
+A full English edition is available: **[README.en.md](README.en.md)**. The Korean-specific entries (CP949, Hangul paths, CJK matching) are kept there with notes on why they matter to non-ASCII users.
 
 ---
 
