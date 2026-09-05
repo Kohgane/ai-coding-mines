@@ -446,7 +446,17 @@ That was **the front of the batch only.** Sampling across offsets gave a complet
 - Log **how far you got**, not just the failure count. `"8 failures"` without a denominator says nothing
 - ★ **Look for bands at 0%.** An average hides them
 
-The same thing happened with sample size — a defect rate of 36% at n=500 became 48% at n=1,900. **Small samples and front-loaded samples both err optimistic.**
+The same thing happened with sample size. The survey was run three times and **all three were wrong in the same direction.**
+
+| Sample | Defect rate |
+|---|---|
+| 500 | 36% |
+| 1,900 | 48% |
+| 4,900 | **69%** |
+
+★★ **If an estimate keeps getting revised in one direction only, it has not converged yet.**
+If it worsened every time you widened the sample and never once went the other way, **the current figure is still a lower bound.**
+**Small samples and front-loaded samples both err optimistic.**
 
 ---
 
@@ -536,3 +546,26 @@ The platform has **no correction API** (the `/correction` path is a 404). The re
 **Aside — a defect that was harmless because it never landed**
 This defect had **already been documented weeks earlier.** At the time the write never actually reached the downstream system, so there was no damage, and it was filed as "observed".
 ★★ **A defect that was harmless because it never landed has not been fixed.** It fires unchanged on the day the path opens.
+
+---
+
+## Derive the failure list from absence, not from failure records
+
+**Situation**
+A bulk registration batch hit a daily quota and **333 of 1,155 items were rejected.** A list of what failed is needed.
+
+**The wrong way — parsing `FAIL` out of the result CSV**
+★ **CSV column layouts differ between scripts.** Once several batches exist, column order, header names and delimiters drift apart, and **parsing breaks silently.** The failure list then comes back empty or wrong.
+
+**The right way — subtract from the target system**
+Take the full list you intended to send and subtract **what is now present in the target's completed list.**
+
+★★ **A failure record depends on the format of whatever wrote it; absence is a fact about the target system.**
+
+**Why this generalises**
+- A failure record **only exists if that write succeeded.** If the process died mid-run, that span has no failure record at all
+- Absence holds **regardless of what happened in between**
+- ★ For the same reason, **"what is still missing" is a safer retry set than "how many succeeded"**
+
+**Aside about the quota itself**
+The quota counted **variants, not products.** Items with many options **burn through it far faster** — the same number of records drains it at a different rate. ★ **Check whether the limit's unit is the same unit you are counting in.**
