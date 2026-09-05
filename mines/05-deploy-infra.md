@@ -361,3 +361,82 @@ keytool -printcert -jarfile X.aab | grep SHA1
 - 두 축을 **따로 측정**한다. fps와 **타일이 채워지는 시간**을 같이 본다
 - 조이기 전에 **되돌릴 수 있게 값을 기록**해둔다. 나중에 원복이 가능했던 건 이전 로그에 값이 남아 있어서였다
 - 로딩 인디케이터처럼 **기다림을 보이게 하는 것**도 체감 개선 수단이다(값을 안 건드리고)
+
+---
+
+## TWA/Android 빌드 3대 함정 (Windows)
+
+**① 생성 도구의 `update`가 내 설정을 덮어쓴다**
+
+`bubblewrap update`를 돌릴 때마다 `gradle.properties`의 `org.gradle.jvmargs`가 기본값(`-Xmx1536m`)으로 되돌아간다. 메모리 여유가 그보다 적은 머신에서는 즉시 실패한다.
+
+```
+Error occurred during initialization of VM
+Could not reserve enough space for 1572864KB object heap
+```
+
+**처방: 파일 대신 환경변수를 쓴다.** 환경변수가 파일보다 우선한다.
+
+```powershell
+$env:GRADLE_OPTS="-Xmx768m -Dfile.encoding=UTF-8"
+```
+
+파일도 같이 고치되, **`update` 후 매번 재확인**한다.
+★ **생성기가 관리하는 파일에 내 설정을 두면 다음 생성 때 사라진다.**
+
+**② 프로젝트 경로에 비ASCII 문자가 있으면 빌드가 거부된다**
+
+```
+Your project path contains non-ASCII characters
+```
+
+**처방: ASCII 경로에서만 작업한다**(`C:\dev\proj`). `overridePathCheck`로 끄지 말 것 — 검사를 끈다고 아래쪽 도구들이 그 경로를 다루는 건 아니다.
+
+**③ 매니페스트를 고친 뒤 반드시 `update`를 돌린다**
+
+`twa-manifest.json`은 **설계도일 뿐이고 실제 빌드 대상은 `app/build.gradle`**이다. 패키지명만 고치고 바로 빌드하면 **옛 패키지명으로 빌드된다.**
+
+```
+매니페스트 편집 → update → gradle.properties 복구 → build
+```
+
+★ 그리고 **메모장으로 편집하면 경로 이스케이프가 깨진다**(`C:||dev||proj||`). 구조화된 편집을 쓴다.
+
+```powershell
+$m = Get-Content twa-manifest.json -Raw | ConvertFrom-Json
+$m.signingKey.path = "C:\dev\projpp.keystore"
+$m | ConvertTo-Json -Depth 10 | Set-Content -Encoding UTF8 twa-manifest.json
+```
+
+---
+
+## 키스토어를 버리기 전에 콘솔 등록 상태를 확인하라
+
+**사고 경위 — 실제 손실이 났다**
+생성한 키스토어의 비밀번호가 안 맞아 열리지 않았다. **"아직 스토어에 올린 적 없으니 버려도 손해 0"** 이라 판단하고 새 키스토어로 재생성했다.
+
+**그 시점에 이미 콘솔에 업로드 키로 등록돼 있었다.**
+
+```
+Android App Bundle이 잘못된 키로 서명되었습니다
+콘솔 기대 SHA1  AA:BB:CC:DD:...   ← 열 수 없는 옛 키스토어
+우리 키스토어    11:22:33:44:55:...
+```
+
+업로드가 **영구 거부**됐다. 업로드 키 재설정 요청은 **승인까지 2~7일**이 걸린다.
+
+★ **"아직 안 썼으니 버려도 된다"는 판단은 내가 아는 범위 안에서만 참이다.** 등록은 내가 잊은 다른 단계에서 이미 일어났을 수 있다.
+
+**철칙**
+
+1. 키스토어를 버리기 전 **콘솔의 앱 서명 화면을 먼저 본다**
+2. 생성 직후 **즉시** `keytool -list -v`로 비밀번호를 검증한다. **통과 전에는 번들을 만들지도, 콘솔에 앱을 만들지도 않는다**
+3. 비밀번호는 **영문자 + 숫자만.** 특수문자는 도구 사이를 오가며 깨진다
+4. **같은 앱의 키스토어를 두 폴더에 만들지 않는다.** 어느 게 등록된 건지 못 가린다
+
+**복구 절차 (같은 일이 또 나면)**
+
+```bash
+keytool -export -rfc -alias <별칭> -keystore <키스토어> -file upload_certificate.pem
+```
+콘솔 → 앱 서명 → 업로드 키 재설정 요청 → PEM 업로드
