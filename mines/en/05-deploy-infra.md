@@ -361,3 +361,64 @@ Tightened cache and preload to protect frame rate. Frames held, but tiles filled
 - **Measure the two axes separately.** Watch fps and **time-to-tiles-filled** together.
 - **Record the values before tightening** so you can revert. The revert was only possible because the old values were in a previous log.
 - A loading indicator that **makes the wait visible** is also a perceived-performance tool (without touching the values).
+
+---
+
+## Three traps in TWA/Android builds on Windows
+
+**1. The generator's update overwrites your settings**
+
+Every `bubblewrap update` resets `org.gradle.jvmargs` in `gradle.properties` to its default. On a machine with less free memory than that, it fails immediately.
+
+```
+Could not reserve enough space for 1572864KB object heap
+```
+
+**Fix: use the environment variable instead of the file** — it takes precedence.
+
+```powershell
+$env:GRADLE_OPTS="-Xmx768m -Dfile.encoding=UTF-8"
+```
+
+★ **Settings you keep in a generator-managed file disappear at the next generation.**
+
+**2. A non-ASCII project path is rejected**
+
+```
+Your project path contains non-ASCII characters
+```
+
+Work from an ASCII path. Do not disable the check — turning off the check does not teach the downstream tools to handle the path.
+
+**3. Editing the manifest does nothing until you run update**
+
+`twa-manifest.json` is **only a blueprint; the actual build input is `app/build.gradle`.** Change the package id and build straight away and you **get a build with the old package name.**
+
+★ Also: editing it in a plain text editor mangles path escapes. Edit it structurally.
+
+---
+
+## Check the console before you throw a keystore away
+
+**What happened — this cost real time**
+A generated keystore would not open (password mismatch). **"It was never shipped, so discarding it costs nothing"** — regenerated.
+
+**It had already been registered as the upload key.**
+
+```
+Android App Bundle signed with the wrong key
+console expects SHA1  AA:BB:CC:DD:...   <- the keystore that will not open
+ours                  11:22:33:44:55:...
+```
+
+Uploads were **permanently rejected**. An upload-key reset takes **2-7 days** to approve.
+
+★ **"It was never used, so it is safe to delete" is only true within what I happen to know.** Registration may already have happened in a step I forgot.
+
+**Rules**
+
+1. **Look at the console's app-signing page before discarding a keystore**
+2. Verify the password with `keytool -list -v` **immediately** after generating. **No bundles and no console entry until it passes**
+3. Passwords: **letters and digits only.** Special characters break between tools
+4. **Never create two keystores for the same app in two folders.** You will not be able to tell which one is registered
+

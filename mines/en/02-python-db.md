@@ -350,3 +350,158 @@ One JSON state file **read by 3+ processes and written by 2** (a 30-minute cron,
 ★ **Same root as the progress-file name collision: a shared resource with no owner.**
 
 There were days with zero loss. **Pure luck.**
+
+---
+
+## A prefix-format value changes which operator is correct
+
+Putting a reason into the value is good — it records *why* something was handled that way.
+
+```
+done[x] = "ok:16371818883" / "skip:policy_excluded" / "manual:needs_review" / "fail2"
+```
+
+**Then the check must be `startswith`.**
+
+```python
+done_ok = str(v).startswith(("ok", "skip", "manual"))
+```
+
+★ **`!= "ok"` and `not in ("ok", "skip")` pass for every prefixed value.**
+`"ok:16371818883" != "ok"` is **True** → **every completed item gets reprocessed.** No error, normal logs, and **the queue never drains.**
+
+**Safer shape — separate the verdict from the detail**
+
+```python
+done[x] = {"state": "ok", "detail": "16371818883"}
+```
+
+Pack two things into one value and **every reader has to honour the parsing convention; one place gets it wrong and it leaks.**
+
+**The same operator hazard, other direction**
+
+| Value scheme | Wrong operator | Result |
+|---|---|---|
+| `"ok:123"` | `!= "ok"` | done read as not-done → **infinite reprocessing** |
+| `draft` / `draft_pending` | `== "draft"` | the second one is **silently dropped** |
+
+★ **When values share prefixes, both `==` and `!=` are dangerous.** One drops items, the other passes everything.
+★ **Decide the value format and the check code together.** Change the format later and the check flips silently.
+
+---
+
+## Not saving before `continue` throws the decision away
+
+If a loop **changes state in memory and then continues**, a crash or an interrupt before the next flush **erases the decision itself.** The next run sees the item as if for the first time.
+
+★ **Save the moment you change state. Do not rely on a save at the end of the loop.**
+
+This is one layer away from "record failures too" — there the record was never *conceived*; here it was **made and then never written.**
+
+**Four shapes produce the identical symptom**
+
+Four different ways to get the same progress file wrong. **All four were hit in one day.**
+
+| | Shape | Symptom |
+|---|---|---|
+| 1 | Changed the value format, left the check | `"ok:123" != "ok"` passes → reprocess completed work |
+| 2 | Compared with `==` | prefix-sharing values silently dropped |
+| 3 | Marked `ok` from the response alone | no re-query → **the whole completion log is fiction** |
+| 4 | Did not save before continuing | the decision vanishes → **infinite reprocessing** |
+
+★ **None of the four raises an error, and all four leave the queue full.**
+So **if you fix one and the symptom stays, read it as "there is another shape", not "it is not fixed".**
+
+**The rule — you need all three**
+
+1. **Check with `startswith`** — with prefixed values, `==` and `!=` are both wrong
+2. **Save immediately** — the moment state changes
+3. **Confirm completion by re-query** — the response is not evidence
+
+★ **Miss any one and the queue stays full. And the symptom does not tell you which one you missed.**
+
+---
+
+## Never read batch progress as an overall rate
+
+**Symptom**
+Watching the log during a batch, failures were **only 8**. "Almost done."
+
+**Cause**
+That was **the front of the batch only.** Sampling across offsets gave a completely different distribution.
+
+| offset | success |
+|---|---|
+| 0-4,000 | **92-95%** |
+| 6,000 | **44%** |
+| 8,000 | **0%** |
+| 9,400 | **84%** |
+
+**The real figure was 68.3%.**
+
+★★ **Sort order manufactures bias.** Sorted by creation date, **the front is the newest data and therefore the best maintained.** Estimating the whole from the front is always optimistic.
+
+**Fix**
+- **Sample across offsets** — not N from the front, but **N per band**
+- Log **how far you got**, not just the failure count. `"8 failures"` without a denominator says nothing
+- ★ **Look for bands at 0%.** An average hides them
+
+The same thing happened with sample size — a defect rate of 36% at n=500 became 48% at n=1,900. **Small samples and front-loaded samples both err optimistic.**
+
+---
+
+## Two metrics were naming the same set
+
+**Symptom**
+"Cost unknown" and "source unlinked" were counted as **separate problems, each getting its own fix.**
+
+**Reality**
+The 31.7% with no cost was **exactly the unlinked set.** No wonder adjusting the formula or the match threshold moved nothing — **there was nothing to compute from.**
+
+★ **Different metric names do not mean different targets.** **Count the intersection once** and you are done.
+
+---
+
+## Key normalisation has two directions
+
+Keys for the same thing drift apart in **two** ways. Fix one and the other stays.
+
+| Direction | Cause | Symptom |
+|---|---|---|
+| **different to same key** | truncation cuts the distinguishing suffix | overwritten; **only the last survives** |
+| **same to different key** | re-registration **appends a suffix** | the lookup **never matches at all** |
+
+```
+B0734ZHGXK -> B0734ZHGXKAB -> ...R / RR / RRR
+```
+
+**Fix**
+1. **Expand candidates** — original / suffix-stripped / prefix-stripped
+2. Cross-check against a **lowercased, punctuation-stripped index**
+
+75% matched after applying this (6,657 of 8,858).
+
+★ **Some never match even with expansion** — they were minted under a different scheme entirely. **If you do not write the counterpart key at minting time, there is no recovering it later.**
+
+---
+
+## Match the Python version of the deployment target
+
+**Symptom**
+A script that runs locally dies on the server with `SyntaxError` — a **parse-time** failure, so not a single line executes.
+
+**Cause**
+Shared hosting and older servers commonly default to **3.9**. Your laptop is on 3.11-3.12.
+
+| Syntax | Requires |
+|---|---|
+| `match` / `case` | 3.10+ |
+| union type hints | 3.10+ |
+| `tomllib` | 3.11+ |
+| `itertools.batched` | 3.12+ |
+
+**Fix**
+- Run `python3 -V` **on the server first**
+- ★ **Versions differ per execution site even inside one project** — the PaaS runtime and the SSH box being different is normal
+- One parse pass at the lowest version catches it: `python3.9 -m py_compile *.py`
+

@@ -29,7 +29,7 @@ AI에게 코드를 맡기면 **속도가 판단을 앞지른다.** 한 번에 �
 | | 분류 | 내용 |
 |---|---|---|
 | 01 | [Windows · PowerShell](mines/01-windows-powershell.md) | PS 5.1 CP949, BOM 없는 `.ps1`, 네이티브 exe 인자·stderr, 인코딩 경계 |
-| 02 | [Python · DB · 데이터 로직](mines/02-python-db.md) | 조용한 실패, "없음"과 "못 찾음", 식별자 오용, 이름 매칭, upsert 상태 되돌림 |
+| 02 | [Python · DB · 데이터 로직](mines/02-python-db.md) | 조용한 실패, "없음"과 "못 찾음", 식별자 오용, 진행 파일 4형태, 표본 편향 |
 | 03 | [Git · 자동화 · 크론](mines/03-git-automation.md) | 무음 자동푸시, `pgrep` 자기탐지, 락 잔재, 프로세스 한도, 비밀값 위생 |
 | 04 | [Claude Code · AI 에이전트](mines/04-claude-code-agent.md) | 훅 경로 확장, 컨테이너 레포 역행, 산출물 증발, CI 그린 착시, 탐색 소진 6축 |
 | 05 | [배포 · 인프라 · 외부 API](mines/05-deploy-infra.md) | 무증상 롤백, COPY 누락, 동기 라우트 타임아웃, OAuth 함정, 모바일 빌드·서명 |
@@ -79,10 +79,10 @@ Three rules run through the whole collection:
 | | Category | Topics |
 |---|---|---|
 | 01 | [Windows · PowerShell](mines/en/01-windows-powershell.md) | PS 5.1 CP949 corruption, BOM-less `.ps1`, native exe argument and stderr traps, encoding boundaries |
-| 02 | [Python · DB · data logic](mines/en/02-python-db.md) | Silent failure, "absent" vs "not found", identifier misuse, name matching, upsert reverting state |
+| 02 | [Python · DB · data logic](mines/en/02-python-db.md) | Silent failure, "absent" vs "not found", identifier misuse, four progress-file shapes, sampling bias |
 | 03 | [Git · automation · cron](mines/en/03-git-automation.md) | Silent auto-push, `pgrep` self-detection, stale lock files, fork limits, secret hygiene |
-| 04 | [Claude Code · AI agents](mines/en/04-claude-code-agent.md) | Hook path expansion, container repo regression, vanished artifacts, green-CI illusion |
-| 05 | [Deploy · infra · external APIs](mines/en/05-deploy-infra.md) | Symptomless rollback, missing COPY, sync-route timeouts, OAuth traps |
+| 04 | [Claude Code · AI agents](mines/en/04-claude-code-agent.md) | Hook path expansion, container repo regression, vanished artifacts, green-CI illusion, exhausting the search space |
+| 05 | [Deploy · infra · external APIs](mines/en/05-deploy-infra.md) | Symptomless rollback, missing COPY, sync-route timeouts, OAuth traps, mobile build and signing |
 | 06 | [Write APIs · not trusting the response](mines/en/06-write-api.md) | Five ways a success response lies, reading a 400 as "zero rows", partial updates silently ignored |
 
 ### Format

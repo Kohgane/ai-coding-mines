@@ -147,3 +147,37 @@ Two things kept collapsing.
 
 **3. No "done" without verification**
 When you write "done," **write what verified it.** Unverified is written as "executed," nothing more.
+
+---
+
+## "There is no data" is a claim you have to earn
+
+**What happened**
+Looking for a worldwide signal, I **dug three times and concluded it does not exist for free. That was wrong.**
+
+| Axis tried | Why it failed |
+|---|---|
+| Commercial rating body | 202, bot-blocked |
+| Structured wiki properties | 1,222 rows, **Western-skewed** |
+| OSM edit history | **polluted by bulk bot edits** |
+| Wiki founding-year data | US 1,011 : KR 0 |
+
+**Told to look somewhere else, the fourth attempt broke through.** A travel wiki's curated data hit 4/4 and covered Asia as well.
+
+**Six axes to sweep before giving up**
+
+1. **Official / regulatory** — governments, international bodies, certification authorities
+2. **Open data** — OSM, Wikidata, Wikivoyage, Socrata, Geofabrik
+3. **Community** — Reddit archives, HN Algolia, forums
+4. **Local-language platforms** — ★ **the fact that *I* cannot read it does not mean the data is scattered**
+5. **Non-commercial curation** — travel wikis, public broadcaster archives
+6. **Inverse proxies** — no direct signal? find **the opposite of the opposite**
+
+**Rules**
+
+- ★ **"There is no data" may only be said after all six axes have been struck**
+- When you do stop, **record what you tried and the measured numbers**
+- **Blocked access** and **biased data** are different failures with different fixes
+
+★ This is the human-scale version of *"absent" vs "not found"* — the same discipline applies to the **whole search**, not just one query. **"I tried three times" is not evidence of exhaustion.**
+
