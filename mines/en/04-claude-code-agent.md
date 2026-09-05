@@ -181,3 +181,40 @@ Looking for a worldwide signal, I **dug three times and concluded it does not ex
 
 ★ This is the human-scale version of *"absent" vs "not found"* — the same discipline applies to the **whole search**, not just one query. **"I tried three times" is not evidence of exhaustion.**
 
+---
+
+## Never make exploratory writes against live data
+
+**The incident**
+To find out which carrier code was correct, `TESTONLY000000` was written as the tracking number on a **real customer order**, trying **15 codes in sequence**.
+
+One code **accepted it without any format validation.** The order transitioned to *shipped* and a **fake tracking number appeared on the customer's screen.** That platform has **no correction API** — it cannot be undone.
+
+**★★ A test premised on "this will fail" is not a test, it is a write**
+
+It felt like exploration because of the assumption **"it will be rejected anyway."** That assumption became **the basis for action without ever being verified.**
+
+★ **A request sent expecting rejection is still a write when it is accepted.** Writes that feel like reads are the dangerous ones — **you send them without preparing to undo them.**
+
+★★ **Expecting the receiving side to validate input is not a safeguard.** That endpoint didn't check the format. **Do not use someone else's defences as your own.**
+
+**A read habit carried into writes**
+
+"Don't trust the docs, pull the actual values" appears elsewhere in this collection. But that is **read-only advice.** Discovering a value by trying candidates one at a time works for queries and **does not work for writes.** Unknown values come from **documentation, metadata endpoints, or asking.**
+
+**Rules**
+
+1. **No exploratory writes against live data.** No exceptions
+2. **Irreversible writes happen only after the value is confirmed**
+3. ★ **"It won't work anyway" is not a reason to execute.** If you think it will fail, **don't send it**
+4. If a trial is genuinely required, **create a disposable target**
+
+★★ **Irreversible, externally visible, or user-facing** — if any one applies, it is a **no-exploration zone.** This order was all three.
+
+**★★★ Aside — the same day, the same person broke their own rule**
+
+Immediately beforehand, a **tracking-number format rule (carrier prefix, or 12+ digits) had been agreed and written into the code.** Then a value **failing that very rule** was entered by hand on a live order.
+
+That same morning there had been an incident where **a validator had the defect it was meant to catch on its allow-list.**
+
+★ **In both cases the rule was inside the code and the behaviour was outside it.** Putting a rule in the code and **being bound by that rule yourself** are different things.
