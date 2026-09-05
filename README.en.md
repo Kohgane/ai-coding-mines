@@ -65,6 +65,10 @@ Each entry runs **Symptom → Cause → Fix → (where there is one) Verificatio
 
 ---
 
+## The vault structure these mines were recorded in
+
+All 90 entries came out of one Obsidian vault. Its folder layout, frontmatter, and note formats, with the content removed, live in **[vault-template/](vault-template/)**. Clone this repo and copy that folder out to start collecting your own mines the same way. Details in [vault-template/README.en.md](vault-template/README.en.md).
+
 ## Author
 
 **KOHGANE** — has been running commerce automation pipelines alongside AI agents and piling up what got stepped on in an Obsidian vault. This repo is **only the portion that qualifies as general technical traps**, extracted and cleaned. Operational details, partners, accounts, and infrastructure identifiers are all excluded.

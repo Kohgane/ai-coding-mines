@@ -97,6 +97,10 @@ A full English edition is available: **[README.en.md](README.en.md)**. The Korea
 
 ---
 
+## 이 지뢰들을 기록한 볼트 구조
+
+90건은 전부 한 Obsidian 볼트에서 나왔다. 그 볼트의 폴더 구조·frontmatter·노트 형식을 내용만 비워 **[vault-template/](vault-template/)** 에 넣어 두었다. 클론해서 폴더째 복사하면 같은 방식으로 자기 지뢰를 쌓기 시작할 수 있다. 자세한 설명은 [vault-template/README.md](vault-template/README.md).
+
 ## 지은이
 
 **KOHGANE** — 커머스 자동화 파이프라인을 AI 에이전트와 함께 굴리면서 밟은 것들을 옵시디언 볼트에 쌓아왔다. 이 저장소는 그중 **일반적인 기술 함정에 해당하는 분량만** 골라 정제한 것이다. 운영 정보·거래처·계정·인프라 식별자는 전부 제외했다.

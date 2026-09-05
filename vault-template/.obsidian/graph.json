@@ -1,0 +1,72 @@
+{
+  "collapse-filter": true,
+  "search": "",
+  "showTags": false,
+  "showAttachments": false,
+  "hideUnresolved": false,
+  "showOrphans": true,
+  "collapse-color-groups": false,
+  "colorGroups": [
+    {
+      "query": "tag:#중요",
+      "color": {
+        "a": 1,
+        "rgb": 16749824
+      }
+    },
+    {
+      "query": "path:지뢰",
+      "color": {
+        "a": 1,
+        "rgb": 16729402
+      }
+    },
+    {
+      "query": "path:런북",
+      "color": {
+        "a": 1,
+        "rgb": 3199320
+      }
+    },
+    {
+      "query": "path:결정",
+      "color": {
+        "a": 1,
+        "rgb": 16766474
+      }
+    },
+    {
+      "query": "path:프로젝트",
+      "color": {
+        "a": 1,
+        "rgb": 12540658
+      }
+    },
+    {
+      "query": "path:인프라",
+      "color": {
+        "a": 1,
+        "rgb": 689407
+      }
+    },
+    {
+      "query": "path:데일리",
+      "color": {
+        "a": 1,
+        "rgb": 9342611
+      }
+    }
+  ],
+  "collapse-display": true,
+  "showArrow": false,
+  "textFadeMultiplier": 0,
+  "nodeSizeMultiplier": 1.2,
+  "lineSizeMultiplier": 1,
+  "collapse-forces": true,
+  "centerStrength": 0.5,
+  "repelStrength": 12,
+  "linkStrength": 1,
+  "linkDistance": 250,
+  "scale": 0.36288736930121057,
+  "close": true
+}
