@@ -505,3 +505,34 @@ Shared hosting and older servers commonly default to **3.9**. Your laptop is on 
 - ★ **Versions differ per execution site even inside one project** — the PaaS runtime and the SSH box being different is normal
 - One parse pass at the lowest version catches it: `python3.9 -m py_compile *.py`
 
+---
+
+## The validator had the very shape it was meant to catch on its allow-list
+
+**The incident**
+An automation **wrote the wrong value into an external system.** Vendor A's order number went in as the tracking number for vendor B's order, and **the customer could no longer track their shipment.**
+
+**First cause — a single matching key**
+Matching was done **on vendor name alone.** With more than one open item for that vendor, it attaches to an arbitrary one.
+
+**Second cause — this is the real one**
+The regex written to *detect* bad values had **`^\d{10,14}$` registered as a "valid format".**
+**That is exactly the shape of this incident** — a 10-digit order number sitting in the tracking field.
+
+★★ **The signature of the defect was on the validator's allow-list.**
+A rule added because "that's a normal format" let precisely that accident through.
+
+**★★ It could not be undone**
+The platform has **no correction API** (the `/correction` path is a 404). The record's state also rejects a rewrite. **The only route left is a human fixing it in the admin UI.**
+
+★ **For irreversible writes there is no defence but validation beforehand.** Do not design as though a corrective path will exist.
+
+**Rules**
+
+1. **When you write a validator, check whether the defect it exists to catch is on its allow-list**
+2. ★ **Regression-test detection rules against real past incidents.** Feed in an error that actually happened and confirm it fires. If it doesn't, the rule may as well not exist
+3. Values written outbound need **format validation *and* target matching.** Either alone is insufficient
+
+**Aside — a defect that was harmless because it never landed**
+This defect had **already been documented weeks earlier.** At the time the write never actually reached the downstream system, so there was no damage, and it was filed as "observed".
+★★ **A defect that was harmless because it never landed has not been fixed.** It fires unchanged on the day the path opens.
