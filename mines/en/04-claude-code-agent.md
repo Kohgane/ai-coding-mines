@@ -188,7 +188,9 @@ Looking for a worldwide signal, I **dug three times and concluded it does not ex
 **The incident**
 To find out which carrier code was correct, `TESTONLY000000` was written as the tracking number on a **real customer order**, trying **15 codes in sequence**.
 
-One code **accepted it without any format validation.** The order transitioned to *shipped* and a **fake tracking number appeared on the customer's screen.** That platform has **no correction API** — it cannot be undone.
+One code **accepted it without any format validation.** The order transitioned to *shipped* and a **fake tracking number appeared on the customer's screen.**
+
+(It was judged at the time to be **irreversible for lack of a correction API** — that judgement was **wrong**; the guessed paths 404'd but a correction path existed under another name. See the dedicated entry below. ★ The point stands: **that was not known at the moment of writing.** "It turned out to be reversible" is an after-the-fact discovery, not a basis for acting.)
 
 **★★ A test premised on "this will fail" is not a test, it is a write**
 

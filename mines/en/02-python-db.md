@@ -533,7 +533,13 @@ The regex written to *detect* bad values had **`^\d{10,14}$` registered as a "va
 A rule added because "that's a normal format" let precisely that accident through.
 
 **★★ It could not be undone**
-The platform has **no correction API** (the `/correction` path is a 404). The record's state also rejects a rewrite. **The only route left is a human fixing it in the admin UI.**
+At the time this was judged to mean **"there is no correction API"** — every guessed path (`/invoices/correction`, `/invoices/update`) returned 404.
+
+**That judgement was wrong.** A correction path existed under a different name: the write is `.../invoices`, the correction is `.../updateInvoices`. The assumption was that **a verb would hang off the same noun**; it was **a separate verb path**. One search found it, and every affected record was fixed.
+
+★★ **A 404 on a URL you guessed means "I don't know the path", not "the capability doesn't exist".** → see the dedicated entry below
+
+⚠️ **Being recoverable does not make the incident lighter.** The wrong value was genuinely shown to the customer; the fix did not undo that, it **covered it.**
 
 ★ **For irreversible writes there is no defence but validation beforehand.** Do not design as though a corrective path will exist.
 
@@ -569,3 +575,43 @@ Take the full list you intended to send and subtract **what is now present in th
 
 **Aside about the quota itself**
 The quota counted **variants, not products.** Items with many options **burn through it far faster** — the same number of records drains it at a different rate. ★ **Check whether the limit's unit is the same unit you are counting in.**
+
+---
+
+## A 404 on a URL you guessed is not "the capability doesn't exist"
+
+**The incident**
+Looking for the path to correct a record, **two names were guessed** and tried.
+
+```
+POST .../invoices/correction   -> 404
+POST .../invoices/update       -> 404
+```
+
+From that, the conclusion was **"this platform has no correction API; it is irreversible."** That conclusion drove **a plan for manual recovery**, went **into the documentation as "irreversible"**, and was reported to someone else as fact.
+
+**It was wrong.** One search produced the real path.
+
+```
+POST .../orders/updateInvoices
+```
+
+★ The write is `.../invoices`; the correction is `.../updateInvoices`.
+The assumption was that **a verb would hang off the same noun.** In reality it was **a separate verb path.** The whole judgement rested on believing the other side follows resource-tree REST conventions.
+
+**★★ Rules**
+
+1. **If you guessed the path, a 404 is not evidence.** Before concluding, ask **"did I invent this URL?"**
+2. **"The capability doesn't exist" may be said only after docs, search and asking**
+3. ★ **"Irreversible" is an unusually expensive verdict.** That one word produces **manual work, design changes, and apologies.** Search once more before saying it
+
+**★★★ Aside — this rule was already written down**
+
+Two days earlier, after a 404 on a different endpoint, this had been recorded:
+
+> **Do not read a 404 as "no such capability". You have not found the path yet.**
+
+**Two days later it was broken.** Three similar things happened that same week — a validator passed the defect it existed to catch, a format rule was agreed and then violated by hand, and here **a judgement rule was written down and not retrieved at the moment of judging.**
+
+★★ **Writing a rule down and retrieving it at the moment of judgement are two different capabilities.**
+Recording it is not enough; it has to sit **somewhere that fires automatically just before the judgement** — a checklist, a lint, a review question — to actually work.
