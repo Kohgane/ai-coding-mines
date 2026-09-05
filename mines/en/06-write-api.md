@@ -349,3 +349,29 @@ When transplanting a template or donor bundle, **find and replace every identifi
 
 **Left unresolved**
 If the platform reissues `deploymentId` at registration, this fix may still not work. **Set the next review as the litmus test; if it fails, abandon the transplant and move to the official build chain.** When you're not sure a fix works, **write down the verdict criterion and the retreat condition in advance.**
+
+---
+
+## The list labelled "all statuses" was not all of them
+
+**Symptom**
+On an API where the list endpoint **requires a status filter**, records in one band never appear. They exist, but no combination of filters returns them.
+
+**Cause**
+One status was **missing from the filter list** — a short-lived intermediate band ("tracking number entered, not yet scanned by the carrier").
+
+★ Worse: that list had been written down six months earlier as **"expanded to all statuses"**. It actually contained a similarly-named value (`NONE`) and omitted the real one (`NONE_TRACKING`). **Because it said "all", nobody checked it again.**
+
+**Cost**
+Orders in that band were **unfindable for two days.** They needed action.
+
+**Fix**
+- Take filter values from **the actual enum, not the documentation**
+- ★ **The moment you write "all", the next person skips verification.** When you record a list, **record how you confirmed it**
+- ★ **Beware statuses whose names read as empty.** `NONE_TRACKING` sounds like "no tracking" but means **"not yet scanned"**. When the name misleads about the nature, it gets dropped from lists
+
+★★ **On a list API with a mandatory filter, a value you omitted is a record that does not exist.**
+Suspect the filter before concluding "there are none".
+
+**The other side is blocked too**
+Records in that band are invisible to the query but **may already be fully processed.** Assume they are unprocessed and retry the write, and you get `INVALID_STATUS`. **Invisible and unprocessed are different things.**
