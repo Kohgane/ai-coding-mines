@@ -86,24 +86,47 @@ def md_to_html(md):
         i += 1
     return "\n".join(out)
 
-CSS = """*{box-sizing:border-box}body{background:#0d0d0f;color:#e6e6e6;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans KR',sans-serif;line-height:1.75;margin:0;padding:0}
-.wrap{max-width:760px;margin:0 auto;padding:48px 20px 96px}
-a{color:#7aa2ff;text-decoration:none}a:hover{text-decoration:underline}
-h1{font-size:30px;line-height:1.35;margin:0 0 8px}h2{font-size:20px;margin:40px 0 12px}h3{font-size:16px;margin:28px 0 8px;color:#cfcfcf}
-.meta{color:#8a8a92;font-size:13px;margin-bottom:32px}
-.nav{font-size:13px;color:#8a8a92;margin-bottom:28px}
-code{background:#1c1c21;padding:2px 6px;border-radius:4px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px}
-pre{background:#151519;border:1px solid #26262c;border-radius:8px;padding:14px;overflow-x:auto}pre code{background:none;padding:0;font-size:12.5px;line-height:1.6}
-blockquote{border-left:3px solid #7aa2ff;margin:18px 0;padding:2px 0 2px 16px;color:#c8c8d0}
-table{border-collapse:collapse;width:100%;margin:18px 0;font-size:14px}th,td{border:1px solid #26262c;padding:8px 10px;text-align:left;vertical-align:top}th{background:#17171c}
-hr{border:0;border-top:1px solid #26262c;margin:32px 0}
-ul,ol{padding-left:22px}li{margin:6px 0}
-.cards{display:grid;gap:12px;margin:24px 0}
-.card{border:1px solid #26262c;border-radius:10px;padding:14px 16px;background:#141418}
-.card a{font-weight:600;font-size:15px}.card p{margin:6px 0 0;color:#9a9aa2;font-size:13.5px}
-.tag{display:inline-block;background:#1c1c21;color:#9a9aa2;font-size:11.5px;padding:2px 8px;border-radius:99px;margin-right:6px}
-footer{margin-top:64px;padding-top:24px;border-top:1px solid #26262c;color:#7a7a82;font-size:13px}
-.hero{border-left:3px solid #ff453a;padding-left:16px;margin:24px 0;color:#c8c8d0}"""
+CSS = """*{box-sizing:border-box}
+:root{--bg:#0f1013;--fg:#e9e9ee;--dim:#9a9aa6;--line:#26272e;--card:#16171b;--accent:#7aa2ff;--red:#ff6b60}
+body{background:var(--bg);color:var(--fg);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans KR',sans-serif;line-height:1.75;margin:0;font-size:16px}
+.wrap{max-width:820px;margin:0 auto;padding:40px 20px 96px}
+a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
+h1{font-size:34px;line-height:1.3;margin:0 0 12px;letter-spacing:-.02em}
+h2{font-size:21px;margin:44px 0 14px;letter-spacing:-.01em}
+h3{font-size:16px;margin:28px 0 8px;color:#cfcfd8}
+.meta{color:var(--dim);font-size:13.5px}
+.nav{font-size:13.5px;color:var(--dim);margin-bottom:24px}
+.topbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:28px;font-size:13.5px;color:var(--dim)}
+.lead{font-size:17.5px;color:#c9c9d4;margin:16px 0 8px;line-height:1.7}
+.hero{border-left:3px solid var(--red);padding:4px 0 4px 18px;margin:26px 0;color:#c9c9d4}
+.quotes{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:18px 20px;margin:26px 0}
+.quotes div{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13.5px;color:#c9c9d4;padding:5px 0}
+.quotes div span{color:var(--red)}
+code{background:#1d1e24;padding:2px 6px;border-radius:5px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13.5px}
+pre{background:#131418;border:1px solid var(--line);border-radius:10px;padding:16px;overflow-x:auto}
+pre code{background:none;padding:0;font-size:13px;line-height:1.65}
+blockquote{border-left:3px solid var(--accent);margin:20px 0;padding:2px 0 2px 18px;color:#c9c9d4}
+table{border-collapse:collapse;width:100%;margin:20px 0;font-size:14.5px}
+th,td{border:1px solid var(--line);padding:9px 12px;text-align:left;vertical-align:top}
+th{background:#1a1b21}
+hr{border:0;border-top:1px solid var(--line);margin:34px 0}
+ul,ol{padding-left:22px}li{margin:7px 0}
+.cats{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:14px;margin:28px 0}
+.cat{border:1px solid var(--line);border-radius:12px;padding:16px 18px;background:var(--card)}
+.cat a{font-weight:650;font-size:16px;display:block;margin-bottom:4px}
+.cat p{margin:0;color:var(--dim);font-size:13.5px;line-height:1.6}
+.cat .n{color:#6d6e79;font-size:12px;margin-top:8px;display:block}
+.cards{display:grid;gap:11px;margin:22px 0}
+.card{border:1px solid var(--line);border-radius:10px;padding:14px 16px;background:var(--card)}
+.card a{font-weight:600;font-size:15.5px}
+.card p{margin:5px 0 0;color:var(--dim);font-size:13.5px}
+.tag{display:inline-block;background:#1d1e24;color:var(--dim);font-size:11.5px;padding:3px 9px;border-radius:99px;margin-right:6px}
+#q{width:100%;background:var(--card);border:1px solid var(--line);border-radius:10px;color:var(--fg);padding:13px 15px;font-size:15px;font-family:inherit;margin:8px 0 4px}
+#q:focus{outline:none;border-color:var(--accent)}
+#hits{margin:10px 0 0}#hits .card{margin-bottom:9px}
+.hint{color:#6d6e79;font-size:12.5px;margin:0 0 20px}
+footer{margin-top:72px;padding-top:26px;border-top:1px solid var(--line);color:#7a7b86;font-size:13.5px;line-height:1.8}
+@media(max-width:600px){.wrap{padding:28px 16px 72px}h1{font-size:27px}body{font-size:15.5px}}"""
 
 def page(title, desc, body, canonical, lang="ko", extra_head=""):
     return f"""<!doctype html><html lang="{lang}"><head>
@@ -208,34 +231,90 @@ def build():
                     page(f'{it["title"]} — ai-coding-mines', it["desc"] or it["title"], body, url, lang,
                          f'<script type="application/ld+json">{ld}</script>'))
                 urls.append(url)
-                all_items.append({"lang":lang,"cat":cat,"title":it["title"],"url":url,"desc":it["desc"]})
-    # 루트 인덱스 (ko / en)
+                all_items.append({"lang":lang,"cat":cat,"catkey":key,"title":it["title"],"url":url,"desc":it["desc"]})
+    # 루트 인덱스 (ko / en) — 카테고리 카드 + 즉시 검색
+    CATDESC = {
+        "01-windows-powershell": ("인코딩, 경로, 셸이 조용히 값을 바꾸는 자리",
+                                  "Encoding, paths, and shells quietly changing your values"),
+        "02-python-db":          ("데이터는 맞는데 결과가 틀릴 때",
+                                  "When the data is right but the result isn't"),
+        "03-git-automation":     ("무인으로 도는 것이 조용히 멈추는 법",
+                                  "How unattended things stop without telling you"),
+        "04-claude-code-agent":  ("에이전트가 완료라고 말할 때 실제로 일어난 일",
+                                  "What actually happened when the agent said done"),
+        "05-deploy-infra":       ("배포, 크론, 외부 서비스의 보이지 않는 벽",
+                                  "Invisible walls in deploys, crons and external services"),
+        "06-write-api":          ("성공 응답이 거짓말하는 방식들",
+                                  "The ways a success response lies"),
+    }
     for lang, prefix in [("ko",""), ("en","en/")]:
         items = [i for i in all_items if i["lang"]==lang]
         if not items: continue
         bycat = {}
-        for i in items: bycat.setdefault(i["cat"], []).append(i)
-        secs = ""
-        for cat, its in bycat.items():
-            links = "".join(f'<li><a href="{it["url"]}">{html.escape(it["title"])}</a></li>' for it in its)
-            secs += f"<h2>{html.escape(cat)}</h2><ul>{links}</ul>"
+        for i in items: bycat.setdefault(i["catkey"], []).append(i)
+        cards = ""
+        for key in sorted(bycat):
+            its = bycat[key]
+            name = CATS.get(key, (key,key))[0 if lang=="ko" else 1]
+            d = CATDESC.get(key, ("",""))[0 if lang=="ko" else 1]
+            unit = "개 항목" if lang=="ko" else "entries"
+            cards += ('<div class="cat"><a href="' + BASE + '/' + prefix + key + '/">'
+                      + html.escape(name) + '</a><p>' + html.escape(d) + '</p>'
+                      + '<span class="n">' + str(len(its)) + ' ' + unit + '</span></div>')
+        idx = json.dumps([{"t":i["title"],"u":i["url"],
+                           "c":CATS.get(i["catkey"],("",""))[0 if lang=="ko" else 1],
+                           "d":i["desc"][:110]} for i in items], ensure_ascii=False)
         if lang == "ko":
-            hero = ("<h1>AI 코딩 지뢰 도감</h1>"
-                    '<div class="hero">AI 코딩 에이전트로 개발하며 <strong>실제로 밟은</strong> 함정 기록. '
-                    "절반 이상이 조용한 실패 — 200이 오고, 종료 코드는 0이고, 에이전트는 완료했다고 하는데 아무 일도 없었던 것들.</div>"
-                    f'<p><a href="{BASE}/en/">English</a> · <a href="{REPO}">GitHub</a></p>')
-            desc = "AI 코딩 에이전트로 개발하며 실제로 밟은 함정 기록. 증상 → 원인 → 해법."
+            top = ('<div class="topbar"><span>ai-coding-mines</span>'
+                   '<span><a href="' + BASE + '/en/">English</a> &middot; <a href="' + REPO + '">GitHub</a></span></div>'
+                   '<h1>AI 코딩 지뢰 도감</h1>'
+                   '<p class="lead">AI 코딩 에이전트로 개발하며 <strong>실제로 밟은</strong> 함정 기록입니다. '
+                   '읽어서 배운 게 아니라 밟아서 배운 것만 있습니다.</p>'
+                   '<div class="quotes">'
+                   '<div>배치가 6주 동안 아무것도 바꾸지 않았다 &mdash; 응답은 매번 <span>200 SUCCESS</span></div>'
+                   '<div>크론이 한 번도 실행되지 않았다 &mdash; 종료 코드는 매번 <span>0</span></div>'
+                   '<div>상품 47건이 정상 등록됐다 &mdash; <span>이미지 0장</span>으로</div></div>'
+                   '<div class="hero">절반 이상이 <strong>조용한 실패</strong>입니다. 에러가 안 납니다. '
+                   '성공했다고 말하고, 아무 일도 일어나지 않습니다.</div>'
+                   '<h2>증상으로 찾기</h2>'
+                   '<input id="q" placeholder="겪고 있는 증상을 입력하세요 (예: 한글 깨짐, 200인데 반영 안 됨, exit 0)">'
+                   '<p class="hint">제목과 설명에서 바로 찾습니다. 밟는 순간엔 증상밖에 안 보이니까요.</p>'
+                   '<div id="hits"></div>'
+                   '<h2>분류로 보기</h2><div class="cats">' + cards + '</div>')
+            desc = "AI 코딩 에이전트로 개발하며 실제로 밟은 함정 기록. 증상으로 검색하세요."
+            title = "AI 코딩 지뢰 도감 — 에이전트로 개발하며 실제로 밟은 함정들"
         else:
-            hero = ("<h1>AI Coding Landmines</h1>"
-                    '<div class="hero">Traps I <strong>actually stepped on</strong> while building with AI coding agents. '
-                    "More than half are silent failures — 200 OK, exit code 0, agent says done, nothing happened.</div>"
-                    f'<p><a href="{BASE}/">한국어</a> · <a href="{REPO}">GitHub</a></p>')
-            desc = "Traps actually stepped on while building with AI coding agents. Symptom, cause, fix."
-        url = f"{BASE}/{prefix}"
-        open(os.path.join(OUT, prefix, "index.html") if prefix else os.path.join(OUT, "index.html"),
-             "w", encoding="utf-8").write(page(
-            "AI 코딩 지뢰 도감" if lang=="ko" else "AI Coding Landmines — a field guide",
-            desc, hero + f'<div class="meta">{len(items)} entries</div>' + secs, url, lang))
+            top = ('<div class="topbar"><span>ai-coding-mines</span>'
+                   '<span><a href="' + BASE + '/">한국어</a> &middot; <a href="' + REPO + '">GitHub</a></span></div>'
+                   '<h1>AI Coding Landmines</h1>'
+                   '<p class="lead">Traps I <strong>actually stepped on</strong> while building with AI coding agents. '
+                   'Nothing here was learned by reading.</p>'
+                   '<div class="quotes">'
+                   '<div>A batch changed nothing for six weeks &mdash; every response was <span>200 SUCCESS</span></div>'
+                   '<div>A cron never ran once &mdash; exit code was <span>0</span> every time</div>'
+                   '<div>47 items registered successfully &mdash; <span>all with zero images</span></div></div>'
+                   '<div class="hero">More than half are <strong>silent failures</strong>. Nothing throws. '
+                   'It reports success, and nothing happened.</div>'
+                   '<h2>Search by symptom</h2>'
+                   '<input id="q" placeholder="Type what you are seeing (e.g. exit 0 but never ran, 200 but not applied)">'
+                   '<p class="hint">Searches titles and summaries. When you are standing on the mine, the symptom is all you can see.</p>'
+                   '<div id="hits"></div>'
+                   '<h2>Browse by category</h2><div class="cats">' + cards + '</div>')
+            desc = "Traps actually stepped on while building with AI coding agents. Search by symptom."
+            title = "AI Coding Landmines — a field guide to silent failures"
+        nores = ("해당 증상은 아직 도감에 없습니다." if lang == "ko" else "No entry matches yet.")
+        script = ('<script>var IDX=' + idx + ';'
+                  'var q=document.getElementById("q"),h=document.getElementById("hits");'
+                  'q.addEventListener("input",function(){var v=q.value.trim().toLowerCase();'
+                  'if(v.length<2){h.innerHTML="";return}'
+                  'var r=IDX.filter(function(i){return (i.t+" "+i.d+" "+i.c).toLowerCase().indexOf(v)>-1}).slice(0,12);'
+                  'h.innerHTML=r.length?r.map(function(i){'
+                  'return "<div class=\\"card\\"><a href=\\""+i.u+"\\">"+i.t+"</a><p>"+i.c+" &middot; "+i.d+"</p></div>"'
+                  '}).join(""):"<p class=\\"hint\\">' + nores + '</p>";});</script>')
+        url = BASE + "/" + prefix
+        out_path = os.path.join(OUT, prefix, "index.html") if prefix else os.path.join(OUT, "index.html")
+        os.makedirs(os.path.dirname(out_path), exist_ok=True)
+        open(out_path, "w", encoding="utf-8").write(page(title, desc, top + script, url, lang))
         urls.append(url)
     # sitemap / robots
     sm = "".join(f"<url><loc>{u}</loc></url>" for u in sorted(set(urls)))
