@@ -422,3 +422,41 @@ Uploads were **permanently rejected**. An upload-key reset takes **2-7 days** to
 3. Passwords: **letters and digits only.** Special characters break between tools
 4. **Never create two keystores for the same app in two folders.** You will not be able to tell which one is registered
 
+---
+
+## The headroom your monitoring shows is not your headroom
+
+**Symptom**
+The disk filled up again. `df` reports **407GB free.** Writes still fail.
+
+**Cause**
+`df` reports the **whole server**. The actual limit was a **10GB account quota.**
+
+★★ **Check what denominator the tool is showing you.** In shared environments almost every metric describes **the host, not your slice.** Process limits behave the same way — the ceiling is your account's `ulimit`, not the machine's core count.
+
+**Also learned — establish the blast radius before cleaning up**
+
+Not knowing what was safe to delete kept the problem untouched for a long time. Measuring it:
+
+| Target | Size | Verdict |
+|---|---|---|
+| 1,002 oversized upload originals | 1.4GB | **can be downscaled** |
+| 10,056 thumbnails at one size | 642MB | **not referenced by the theme** |
+| Product images on an external platform | — | **on that platform's CDN, unrelated to this server** |
+
+★ **Without establishing where things are actually stored, vague fear stops you from doing anything.** The last row especially — the product images were *assumed* to live on this server.
+
+**★★ Downscaling was chosen over deletion**
+
+Keeping the **same filename and path** and only shrinking the contents leaves **the database and every reference intact.** Deletion breaks if a single reference survives; downscaling has nothing to break.
+
+★ **Prefer a measure that doesn't need undoing over one that can't be undone.**
+
+**★★★ Put the target number in the code**
+
+This was the **second** occurrence. The first time it was cleaned up too and a third of the space was recovered — but that was **first aid applied at the ceiling**, and the same wall came back.
+
+This time the cleanup job **disarms itself once usage drops to the target**.
+
+★ **A threshold a person remembers only fires during a crisis. A threshold in the code fires in peacetime.**
+"We'll clean it up when it gets close" is not a plan; it is **a commitment to hitting it again.**
