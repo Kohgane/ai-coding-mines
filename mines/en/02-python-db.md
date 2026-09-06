@@ -911,3 +911,76 @@ If you don't know the structure, **set both** — `justify-content` / `align-ite
 Verify alignment fixes **by coordinates.** Measure button x, right edge, and column boundary with `getBoundingClientRect` and confirm they converge on the same value per row. A computed-value check answers "did the declaration arrive?"; only coordinates answer "did it do anything?"
 
 ★ **A computed value is a necessary condition, not a sufficient one.** When the place you check is not the place that does the work, computed values and green checks both lie.
+
+---
+
+## A value being present does not make it that field's value
+
+**Symptom**
+Structured metadata (json-ld) `description` was scraped as the product description. The location matches the schema and the type is a string, so **no validation catches it.** The actual content:
+
+```
+"Used to get facts about the stores policies..."
+```
+
+It was **chatbot guidance text.**
+
+**★★ How to tell — put two records side by side**
+★ **If two records carry the same string, it is not a per-record value; it is site-wide boilerplate.**
+**One record on its own looks plausible.** The nature only shows up in comparison.
+
+The same shape appeared elsewhere — generated bodies came out at **exactly the same length across many records**, which was the signal that the generator was re-reading its own output.
+
+★ **Identical output across many records is itself a signal.** Schema validation will never catch this.
+
+**Aside — instead of unblocking, remove the need**
+Body text was blocked for a different reason per domain (JS rendering / no such route / boilerplate). Rather than unblocking each one, the path taken was **a layout that doesn't need body text** — on that channel, enough images carries a listing with short text.
+★ **Unblocking something and making it unnecessary are different moves.** The second is often cheaper.
+
+---
+
+## One data shape carrying two meanings will be misread
+
+**Situation**
+A record's `sources` array had multiple entries — 1,107 records did.
+
+While designing a new feature (bundled products), it was nearly read as **"multiple entries, so this must be a bundle."** It was in fact a list of **alternative suppliers.**
+
+★★ **Reading it that way would have sent wrong purchase orders for 1,107 items.**
+
+**Fix — split fields by meaning, not by shape**
+
+```json
+{"is_set": true,
+ "set_items": [...],   // bundle components
+ "sources":   [...]}   // alternative suppliers
+```
+
+Both are arrays, but **the names differ and different code consumes them.** Bundle handling only triggers when the flag is set *and* the dedicated field exists.
+
+★ **Sharing the shape "many" does not make the meaning the same.**
+★★ **Why add structure for a feature you aren't shipping** — adding it later means **reinterpreting 1,107 existing records, and that is exactly when the confusion happens.** Draw the distinction while the count is small.
+
+---
+
+## If the baseline for your subtraction is stale, the subtraction is wrong too
+
+Earlier: **"derive the failure list from absence, not from failure records."** That holds. **But there is one more step in the order.**
+
+**Symptom**
+Deriving by absence produced **1,371 unprocessed items.** The real number was **170.**
+
+**Cause**
+The "completed" list used as the baseline was **a pre-refresh snapshot.** Everything just processed **counted as unprocessed.**
+
+★★ **Deriving by absence assumes the baseline reflects the current state.**
+Without refreshing it first, **the work you just did becomes work you never did.**
+
+**Order**
+```
+1. Refresh the baseline list   <- the step that gets skipped
+2. Diff against everything you intended to send
+3. What is missing is unprocessed
+```
+
+★ Run a batch with the retry set inflated 8x and you **redo finished work while eating into a quota.**
