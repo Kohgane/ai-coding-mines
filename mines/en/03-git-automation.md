@@ -355,6 +355,16 @@ Half the problem was **ten sub-hourly cron entries.**
 Each reads as "once every few minutes" and looks small. **Ten of them together spawn close to 100 per hour.**
 ★ **Counting cron entries is not enough. Sum the per-hour rate of each line.**
 
+**★★ And there is a second axis — how many land in the same minute**
+The other half was **17 entries scheduled on the hour (minute 0)**. All 17 spawn **simultaneously, every hour.** That instant blew past the process limit and **locked out remote access too.**
+
+★★ **The same total blows up when it clusters.** 17 runs per hour is nothing when spread out; **land them in one minute and that minute exceeds the limit.** The limit applies to **instantaneous concurrency**, not to the hourly average.
+
+★ **Equal periods mean equal phase.** Seventeen lines of `0 * * * *` always fire **together**. Nobody intended to bunch them — **minute `0` is the reflex default, so they bunch themselves.**
+
+★★ **Read a schedule three ways — line count, occurrences per hour, and concurrent occurrences in the same minute.** The third one is what actually hits the limit.
+→ **Scatter the minute.** Use `3`, `7`, `11`, `17` … instead of `0`.
+
 **Fix — a sequential runner**
 Keep the work list in a file and have **one cron entry pull one item per tick.**
 
