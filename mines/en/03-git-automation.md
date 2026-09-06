@@ -126,6 +126,34 @@ trap 'rm -f "$LOCK"' EXIT INT TERM HUP
 
 **★ This is the trap created by the previous entry's fix.** `pgrep` guard → PID lock → stale lock. Two stages in one day.
 
+**★★★ And there are cases `trap` cannot cover — a third stage**
+
+To guarantee non-overlap, the job was wrapped in a `timeout`. `timeout` can escalate to `SIGKILL`, and **`SIGKILL` does not run traps.** Dying from a failed `fork` is the same.
+
+**The device added to prevent overlap made the lock impossible to release.** Stage 3 invalidated stage 2's fix.
+
+| | Device | Meant to prevent | Trap it created |
+|---|---|---|---|
+| 1 | `pgrep` guard | duplicate runs | **matches itself** |
+| 2 | PID lock + `trap` | fixes 1 | **stale lock** if killed |
+| 3 | `timeout` hard kill | overlap | **`SIGKILL` skips the trap → stale lock again** |
+
+★★★ **Each defence you add creates a new failure point — and it may break the assumption the previous defence rested on.**
+
+**Fix — add layers that rest on different assumptions**
+
+```bash
+# Layer 1: when there is a chance to run cleanup
+trap 'rm -f "$LOCK"' EXIT INT TERM HUP
+
+# Layer 2: when there wasn't (SIGKILL, power loss, failed fork)
+[ -f "$LOCK" ] && [ $(( $(date +%s) - $(stat -c %Y "$LOCK") )) -gt 600 ] && rm -f "$LOCK"
+```
+
+★★ **A single defence collapses on the path where that defence doesn't run.** `trap` assumes "cleanup gets a chance"; **the TTL covers the path where that assumption fails.**
+
+★ **The TTL must exceed the job `timeout`.** Too short and it **treats a healthy running job as dead**, making the whole concurrency guard meaningless.
+
 ---
 
 ## The safeguard blocks the thing it was protecting (the general case)
