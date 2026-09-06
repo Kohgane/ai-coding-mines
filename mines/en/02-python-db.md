@@ -112,7 +112,7 @@ Minimum three fields per done entry: `{id: {ts, len, src}}`. With the generated 
 Putting a reason into the value is good — it records *why* something was handled that way.
 
 ```
-done[x] = "ok:16371818883" / "skip:policy_excluded" / "manual:needs_review" / "fail2"
+done[x] = "ok:1234567890" / "skip:policy_excluded" / "manual:needs_review" / "fail2"
 ```
 
 **Then the check must be `startswith`.**
@@ -122,12 +122,12 @@ done_ok = str(v).startswith(("ok", "skip", "manual"))
 ```
 
 ★ **`!= "ok"` and `not in ("ok", "skip")` pass for every prefixed value.**
-`"ok:16371818883" != "ok"` is **True** → **every completed item gets reprocessed.** No error, normal logs, and **the queue never drains.**
+`"ok:1234567890" != "ok"` is **True** → **every completed item gets reprocessed.** No error, normal logs, and **the queue never drains.**
 
 **Safer shape — separate the verdict from the detail**
 
 ```python
-done[x] = {"state": "ok", "detail": "16371818883"}
+done[x] = {"state": "ok", "detail": "1234567890"}
 ```
 
 Pack two things into one value and **every reader has to honour the parsing convention; one place gets it wrong and it leaks.**
