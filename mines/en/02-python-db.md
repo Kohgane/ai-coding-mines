@@ -984,3 +984,56 @@ Without refreshing it first, **the work you just did becomes work you never did.
 ```
 
 ★ Run a batch with the retry set inflated 8x and you **redo finished work while eating into a quota.**
+
+---
+
+## The reason for a `400` is on the exception object
+
+**Symptom**
+A message-sending API returned `400 Bad Request`. Suspecting the payload, escaping, length and special characters were all adjusted in turn. None of it mattered.
+
+**Cause**
+The reason was in the response body.
+
+```
+{"description": "Bad Request: PEER_FLOOD"}
+```
+
+It was a **per-sender rate limit for too many messages in a short window** — nothing to do with content. The code caught `HTTPError`, **took the status code, and discarded the body.**
+
+★★ **The exception object carries the response.** One `e.read()` reveals it. Take only the status code and **the reason disappears entirely.**
+
+**Diagnosis — same input, different sender**
+The identical body **succeeded from a different sender.** That is the evidence for "not a content problem."
+★ **Re-running with exactly one variable changed separates a content problem from a state problem.**
+
+**Response — three stages**
+1. A **fixed delay after each successful send**
+2. On detecting the limit, **a longer wait and retry**
+3. Still failing? **Send from a different sender**
+
+★ Channels that had been **split by purpose became availability redundancy here.** Splitting creates alternate paths as a side effect — with one sender there is no stage 3.
+
+**★★ Aside — the test consumed the production quota**
+The limit was hit **by testing.** Repeatedly clearing the idempotency file (the "already handled" list) and re-running meant **sending the same notifications over and over.**
+
+★★ **When testing something that consumes an external quota, "clear the processed list and run it again" multiplies your outbound volume.** That is a path where testing breaks production. Keep a separate dummy recipient that costs no quota.
+
+---
+
+## Raising one ceiling does nothing if another one is lower
+
+**Situation**
+A sellable-quantity field was hardcoded to **3** with no rationale behind it. Three sales meant out-of-stock, and out-of-stock kills visibility. **The system was suppressing itself.**
+
+★ **A "3 for now" value became the ceiling while nobody looked at it again.** A placeholder with no rationale has no review trigger either.
+
+**Why raising it changed nothing**
+The same resource had a **separate per-order quantity cap**, also set to 3.
+
+★★ **Where two ceilings apply, throughput is set by the lower one.** Raising one alone changes nothing.
+
+**Habits**
+- When raising a limit, **enumerate every other limit on the same flow**
+- ★ Multiple limits often **count in different units** — one may be a total, another per-request
+- When you write a placeholder, **write the review condition next to it.** Without one it becomes permanent
