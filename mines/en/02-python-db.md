@@ -1037,3 +1037,31 @@ The same resource had a **separate per-order quantity cap**, also set to 3.
 - When raising a limit, **enumerate every other limit on the same flow**
 - ★ Multiple limits often **count in different units** — one may be a total, another per-request
 - When you write a placeholder, **write the review condition next to it.** Without one it becomes permanent
+
+---
+
+## Filter pass rates multiply — a near-zero result is not proof the data is thin
+
+**Symptom**
+An 8,000-item catalog went through the pipeline and **27 items** came out the far end. The obvious read was that the source was poor.
+
+**Cause**
+Several filters were ANDed together. **Pass rates do not add, they multiply.** Five conditions that each let 70% through leave you **0.7⁵ = 17%**. No single condition looks unreasonable; stacked, almost nothing survives.
+
+**Fix**
+Relaxing three conditions against measured evidence took it from **27 to 547 (20×)**. The source had been sufficient all along.
+
+★★ **Do not read "too few results" as insufficient supply.** The supply may be fine and the sieve too fine. **A number near zero does not, by itself, tell you why.**
+
+**★★ Without per-reason rejection counts, relaxing filters is guesswork**
+A pipeline that only counts what passed cannot be diagnosed. **Record a reason on every rejection and aggregate by reason.** Measured per source, the top reason differed completely from one source to the next — price here, stock there, attachment count somewhere else.
+
+★ **Tuning a global filter from intuition built on one source loosens the wrong condition.**
+
+**★ Relax one condition at a time**
+Because the rates multiply, **turning off a single condition moves the result by a multiple, not an increment.** Release several at once and you cannot tell which one did the work — and you open the gate wider than intended.
+
+**How to verify**
+Attach a `{reason: count}` aggregate at the end of the pipeline, then toggle conditions **one at a time** and record the pass count. If the model is right, each condition you disable multiplies the output rather than adding to it.
+
+★ One side benefit: the moment the reason breakdown existed, it exposed **"already processed" sitting inside the rejection reasons.** A normal state mixed into a failure distribution **blurs the real bottleneck ratios.**

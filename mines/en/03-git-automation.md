@@ -380,3 +380,26 @@ Batch size was raised, the concurrency gate was raised, and cron entries were ad
 
 ★ **High priority does not mean it is safe to do a lot at once.**
 ★ **On a capped resource, the optimum is in the middle, not at either end.** Elsewhere the same system had a limit set **far too low** and was suppressing itself; here one was set **far too high** and everything stopped. Two ends of the same mistake.
+
+---
+
+## Long polling wants exactly one consumer — never run two processes on one token
+
+**Symptom**
+Bot commands **intermittently do nothing.** No error. Re-sending sometimes works. It reads exactly like a flaky network.
+
+**Cause**
+Two processes were long-polling (`getUpdates`-style) on the **same bot token**. These APIs assume **one consumer per token.** With two attached, the server hands each message to whichever side is waiting and **removes it from the queue.** The two processes **split the message stream** — a command one of them received, the other **never sees at all**.
+
+★★ **The symptom is omission, not error, so diagnosis lags.** Half of everything works, so it presents as "it does work."  → the [silent failure] family in this collection.
+
+**Fix**
+**One token per purpose.** Separate the notification bot from the command bot, or separate command families.
+
+★ The original reason to split bots was operational comfort — **"one channel mixes everything and urgent items drown in noise."** The moment command handling was added, that split became a **correctness requirement.** **A separation kept for convenience can quietly become mandatory** — and had it been merged as "just convenience," this is where it would have broken.
+
+**How to verify**
+★★ **Test with both processes running at once.** With only one up, this trap **never appears.** Send 10 commands and confirm all 10 are handled. During development a local instance and a deployed instance commonly share one token, so **"shut down the local one" belongs in the deploy procedure.**
+
+**★ Attach reasons to a zero result**
+For automation you drive remotely from a single screen, **a response that only says "no matches" leaves you unable to choose the next action** — you cannot tell an already-processed input from a genuine miss. **Returning zero is exactly when you owe the caller the why.**
