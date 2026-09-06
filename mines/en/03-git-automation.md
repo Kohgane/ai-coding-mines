@@ -284,3 +284,61 @@ has_ws = V != V.strip()
 ```
 
 Real incident: a copy-paste **dropped the first character** of a token, leaving 45. Two redeploys didn't find it; a fingerprint of the value the server actually held did. Also check leading/trailing whitespace and newlines, unwanted prefixes, and the wrong variable name.
+
+---
+
+## When a resource runs out, your diagnostic tools go with it
+
+**The incident**
+Cron entries grew to **74** and crossed the process limit.
+
+```
+fork: Resource temporarily unavailable
+```
+
+**★★ This is where it gets bad.** Every external command needs to `fork`, so **`ps`, `pkill`, `cat`, `chmod` and `crontab` all stop working.** You cannot see what is running, so **you cannot tell what to kill.**
+
+★ **The commands you normally check with become unusable exactly when you need them.** Same shape as a full disk refusing new SSH sessions — **exhaustion takes observability first.**
+
+**★★ An emergency route that consumes the normal resource is unavailable in an emergency**
+- The shared-hosting panel has **no process manager**
+- `/proc` is **container-isolated** and shows only your own; you cannot kill anything else
+- **The web terminal draws on the same process limit** — equally blocked
+
+The one remaining route was **deleting entries from the cron list screen in the control panel** — the only path that consumed no process.
+
+★ **When designing a recovery route, look at what resource that route consumes.** If it is the same resource that is exhausted, it is not a recovery route.
+
+**★★ Recovery technique — what runs without forking**
+Shell builtins (`echo`, `read`, `kill`, `for`) run **without forking.** And **once a single interpreter is up**, `os.kill`, file writes and subprocesses inside it can do everything else.
+
+★ **Near zero resources, switch from "issue many commands" to "one execution that does all of it."** The whole problem is **securing one process.**
+
+**Removing the cause does not remove the symptom**
+★ **Deleting the cron entries does not kill the processes already spawned.** You have to wait for recovery. Concluding "it isn't fixed" and intervening further makes it worse.
+
+**★★ Count schedules by occurrences per hour, not by lines**
+Half the problem was **ten sub-hourly cron entries.**
+
+```
+1-59/4 · 3-59/8 · 1-59/5 · 2-59/9 · 9-59/10 · ...
+```
+
+Each reads as "once every few minutes" and looks small. **Ten of them together spawn close to 100 per hour.**
+★ **Counting cron entries is not enough. Sum the per-hour rate of each line.**
+
+**Fix — a sequential runner**
+Keep the work list in a file and have **one cron entry pull one item per tick.**
+
+1. **A PID lock pinning concurrency at one** (the `pgrep` approach matches itself — don't)
+2. **Refuse to start at all if the process count is above a threshold**
+3. **A `timeout` shorter than the interval** so ticks never overlap
+
+★★ **Availability beats throughput. One sequential worker beats twenty concurrent ones.**
+★★ **Raising the gate looks like more throughput, but crossing the limit stops everything.** Aiming for 20 lands you at 0.
+
+**★★★ How it got there**
+Batch size was raised, the concurrency gate was raised, and cron entries were added. **All three at once.** Each was a reasonable-looking throughput adjustment on its own.
+
+★ **High priority does not mean it is safe to do a lot at once.**
+★ **On a capped resource, the optimum is in the middle, not at either end.** Elsewhere the same system had a limit set **far too low** and was suppressing itself; here one was set **far too high** and everything stopped. Two ends of the same mistake.
