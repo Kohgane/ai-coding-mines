@@ -25,6 +25,11 @@ No exception, no log line. There was a day with five of these.
 - Don't check whether it says "done"; **count how many came out.**
 - **Check response size and type.** `len < threshold` or an unexpected type means failure.
 
+**When only a traceback is left and even `"new: 0"` never prints, dead and empty look the same**
+A notification batch died on a `KeyError` — bracket access (`rec['url']`) on one field of one record of external data. The log held a traceback and nothing else; the `"new: 0"` line a healthy run prints was missing too. **"No orders today" and "the batch is dead" produce the same log.**
+- **Log one line at batch start and one at batch end.** Even `"new: 0"` has to appear, or death and absence are indistinguishable.
+- **Treat every field of external data as optional.** Use `.get()`. Bracket access kills the whole run over a single record missing one key.
+
 ---
 
 ## "Absent" and "not found" are different facts
@@ -41,6 +46,7 @@ A query returns 0 rows. Two readings branch here and they lead to **opposite con
 | 0 characters of text | No body | **Body is nothing but image tags** |
 | `products.json` 404 | No catalog | **Just not that platform** |
 | Domain not found | No site | **You guessed the domain** |
+| Aggregate says "no catalog" | Never collected | **Collected, but never registered in the mapping table** |
 
 **How to tell them apart**
 - **Look at the response size.** A 2KB response where 2KB can't be a valid answer is a failure.
@@ -50,6 +56,25 @@ A query returns 0 rows. Two readings branch here and they lead to **opposite con
 
 **What it cost**
 Three days for not making this distinction: four locales misjudged as "out of stock"; 12 emails judged as 0 (three times over); a batch with 0 targets; a "discontinued" verdict where the real story was a different domain.
+
+**Blocking is random per request and per locale; a single query cannot judge**
+The same query ran twice. Round one: only one locale succeeded (1.1MB). Round two: that locale was the only failure (2.2KB) and the others succeeded. It isn't a locale problem — it's **random per request.** Every "no source" verdict made from four locales returning 0 had to be re-checked.
+- Before trusting a result, check **`len` against a threshold (under 50KB is a block) and the presence of a core marker** (the result-item tag).
+- On failure, **retry with exponential backoff** (6/12/18s, four attempts).
+- ★ **Don't try to win by retrying.** Image collection from the same source hit the same block and returned 0 images run after run. If a source that doesn't block exists (originals already registered in your own system), **pivot to it** and demote the blocked source to a fallback.
+
+**Mail: 0, a crash, and missing IDs — three traps from one collector migration**
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| Order number not extracted | regex `{6,20}` — one vendor uses **5 digits** | Don't assume ID length. `{4,20}` |
+| Crash | header charset `unknown-8bit` blows up the decoder | **Fallback chain**: utf-8 → cp949 → euc-kr → latin-1 |
+| Mail: 0 | `SINCE 7 days` and "last 120 messages" hard-coded as defaults | Defaults live in **env vars** |
+
+★ **ID length, charset, and query window are all facts about the other side.** An assumption baked into your code shows up as 0 rows or a dead run the moment they change — and 0 rows looks like normal.
+
+**It was collected, and the aggregate still says "absent"**
+Collect a catalog but never add it to the brand mapping table, and the aggregate reports "no catalog". The top 25 brands all showed ✘ when several were already sitting in the catalog. **Collection and mapping are separate jobs.** Registering in the mapping table right after collecting is part of collecting.
 
 ---
 
@@ -81,6 +106,71 @@ Same for progress files and aggregation inputs. `list(d.items())[:3]` to see the
 
 **Fix**
 Minimum three fields per done entry: `{id: {ts, len, src}}`. With the generated body length and the source, a full audit can be done locally.
+
+**★★ A prefix-format value changes which operator is correct**
+
+Putting a reason into the value is good — it records *why* something was handled that way.
+
+```
+done[x] = "ok:16371818883" / "skip:policy_excluded" / "manual:needs_review" / "fail2"
+```
+
+**Then the check must be `startswith`.**
+
+```python
+done_ok = str(v).startswith(("ok", "skip", "manual"))
+```
+
+★ **`!= "ok"` and `not in ("ok", "skip")` pass for every prefixed value.**
+`"ok:16371818883" != "ok"` is **True** → **every completed item gets reprocessed.** No error, normal logs, and **the queue never drains.**
+
+**Safer shape — separate the verdict from the detail**
+
+```python
+done[x] = {"state": "ok", "detail": "16371818883"}
+```
+
+Pack two things into one value and **every reader has to honour the parsing convention; one place gets it wrong and it leaks.**
+
+**The same operator hazard, other direction**
+
+| Value scheme | Wrong operator | Result |
+|---|---|---|
+| `"ok:123"` | `!= "ok"` | done read as not-done → **infinite reprocessing** |
+| `draft` / `draft_pending` | `== "draft"` | the second one is **silently dropped** |
+
+★ **When values share prefixes, both `==` and `!=` are dangerous.** One drops items, the other passes everything.
+★ **Decide the value format and the check code together.** Change the format later and the check flips silently.
+
+**★★ Not saving before `continue` throws the decision away**
+
+If a loop **changes state in memory and then continues**, a crash or an interrupt before the next flush **erases the decision itself.** The next run sees the item as if for the first time.
+
+★ **Save the moment you change state. Do not rely on a save at the end of the loop.**
+
+This is one layer away from "record failures too" — there the record was never *conceived*; here it was **made and then never written.**
+
+**Four shapes produce the identical symptom**
+
+Four different ways to get the same progress file wrong. **All four were hit in one day.**
+
+| | Shape | Symptom |
+|---|---|---|
+| 1 | Changed the value format, left the check | `"ok:123" != "ok"` passes → reprocess completed work |
+| 2 | Compared with `==` | prefix-sharing values silently dropped |
+| 3 | Marked `ok` from the response alone | no re-query → **the whole completion log is fiction** |
+| 4 | Did not save before continuing | the decision vanishes → **infinite reprocessing** |
+
+★ **None of the four raises an error, and all four leave the queue full.**
+So **if you fix one and the symptom stays, read it as "there is another shape", not "it is not fixed".**
+
+**The rule — you need all three**
+
+1. **Check with `startswith`** — with prefixed values, `==` and `!=` are both wrong
+2. **Save immediately** — the moment state changes
+3. **Confirm completion by re-query** — the response is not evidence
+
+★ **Miss any one and the queue stays full. And the symptom does not tell you which one you missed.**
 
 **The trap you step on next: confusing "couldn't process" with "no longer needs processing"**
 Don't record failures in `done` and you get an **infinite retry loop.** Classify "no longer needs doing" as unprocessed and the list never empties; the batch repeats the same work every 20 minutes (385KB of logs and counting).
@@ -116,6 +206,16 @@ Assumed the shape of external data. Entries were `{name, sources:[{url, priority
 **Rule**
 Collection = images, registration = images, translation = translated text. **"Zero of the thing that must exist" is never allowed to pass quietly.**
 
+**An empty record with only a price passed registration and went on sale**
+The residue of a failed scrape — no body, no attributes — got a price attached, passed registration validation, and was found on sale. When an order comes in **there is nothing to purchase.** An unlinked source means "I don't know where to buy it"; this means **the product does not exist.**
+Four indicators of an empty record (compared against a healthy one):
+1. **A single image with a hash filename** — a healthy record has a vendor-code filename plus two or more model shots
+2. **Every attribute blank**, empty body
+3. An option that is a **placeholder string** ("see description")
+4. **Disclosure form does not match the category** — a phone accessory carrying the auto-parts form
+
+★ If registration validation checks "has a price" but not "has the core output", failed residue walks through the same door as a healthy record.
+
 ---
 
 ## A "done" record does not mean done
@@ -135,6 +235,19 @@ def ok(code, resp):
 ```
 
 Without it, ~700 items spun for nothing. All rejected, all recorded as `put`.
+
+**A contaminated done-list corrupts the denominator of the next job**
+A correction batch recorded 2,608 items `ok` on nothing but `PUT 200 SUCCESS`. A full-verification sample: **60 of 60 unchanged.** Those 2,608 were counted as done and **excluded from the next round's "remaining" set** — the fiction didn't stay inside one batch; it poisoned the denominator of everything after it.
+
+The enforced protocol:
+
+```
+write → wait → re-fetch → compare → ok only on match
+```
+
+- If re-fetching everything is expensive, **re-fetch a sample every round** and record the ratio alongside.
+- If the sample is **entirely unchanged, stop immediately.** 60/60 was that signal.
+- ★ **Never store response-based `ok` and re-fetch-based `ok` in the same field.** Once they mix you can no longer tell which completions were verified.
 
 ---
 
@@ -182,6 +295,106 @@ The review screen (GET) and the actual send (POST) **each** called the same buil
 3. **Don't demote "unknown" to 0.** `int(x or 0)` turns "I don't know" into "zero" and sends it quietly.
 4. A contract test that pins **displayed value == sent value.** Testing the two sides separately will never catch the split.
 
+**Not only two code paths — the canonical system and a local copy diverge too**
+The sourcing map's `krw` disagreed with the marketplace's actual listed price. The marketplace is canonical; the local map is a copy. **Compute margin from the copy and you get the wrong answer.** The split isn't limited to two code paths; "canonical system vs local copy" is the same shape.
+In the same map, 618 of 6,541 records had both `usd` and `jpy` empty. A source can be linked and still be useless: **a record missing the price is equivalent to an unlinked record** as far as the margin check is concerned. Treat a missing required input the same way you treat a missing link.
+
+**An upstream 0 turns a derived price negative**
+One channel had products whose sale-price field was 0 (a temporary-failure status, among others). Pulled as-is and fed into a derived price for another channel — `cost − random` — the result is **a negative price.** The derivation formula assumes the upstream value is sane. **Put a lower-bound check right before the derivation.** A 0 is often not "a value" but "no value" wearing different clothes.
+
+---
+
+## Never read batch progress as an overall rate
+
+**Symptom**
+Watching the log during a batch, failures were **only 8**. "Almost done."
+
+**Cause**
+That was **the front of the batch only.** Sampling across offsets gave a completely different distribution.
+
+| offset | success |
+|---|---|
+| 0-4,000 | **92-95%** |
+| 6,000 | **44%** |
+| 8,000 | **0%** |
+| 9,400 | **84%** |
+
+**The real figure was 68.3%.**
+
+★★ **Sort order manufactures bias.** Sorted by creation date, **the front is the newest data and therefore the best maintained.** Estimating the whole from the front is always optimistic.
+
+**Fix**
+- **Sample across offsets** — not N from the front, but **N per band**
+- Log **how far you got**, not just the failure count. `"8 failures"` without a denominator says nothing
+- ★ **Look for bands at 0%.** An average hides them
+
+The same thing happened with sample size. The survey was run three times and **all three were wrong in the same direction.**
+
+| Sample | Defect rate |
+|---|---|
+| 500 | 36% |
+| 1,900 | 48% |
+| 4,900 | **69%** |
+
+★★ **If an estimate keeps getting revised in one direction only, it has not converged yet.**
+If it worsened every time you widened the sample and never once went the other way, **the current figure is still a lower bound.**
+**Small samples and front-loaded samples both err optimistic.**
+
+---
+
+## Two metrics were naming the same set
+
+**Symptom**
+"Cost unknown" and "source unlinked" were counted as **separate problems, each getting its own fix.**
+
+**Reality**
+The 31.7% with no cost was **exactly the unlinked set.** No wonder adjusting the formula or the match threshold moved nothing — **there was nothing to compute from.**
+
+★ **Different metric names do not mean different targets.** **Count the intersection once** and you are done.
+
+---
+
+## Key normalisation has two directions
+
+Keys for the same thing drift apart in **two** ways. Fix one and the other stays.
+
+| Direction | Cause | Symptom |
+|---|---|---|
+| **different to same key** | truncation cuts the distinguishing suffix | overwritten; **only the last survives** |
+| **same to different key** | re-registration **appends a suffix** | the lookup **never matches at all** |
+
+```
+B0XXXXXXXX -> B0XXXXXXXXAB -> ...R / RR / RRR
+```
+
+**Fix**
+1. **Expand candidates** — original / suffix-stripped / prefix-stripped
+2. Cross-check against a **lowercased, punctuation-stripped index**
+
+75% matched after applying this (6,657 of 8,858).
+
+★ **Some never match even with expansion** — they were minted under a different scheme entirely. **If you do not write the counterpart key at minting time, there is no recovering it later.**
+
+**The first direction in practice — the overwrite shows up as "unindexed"**
+The external SKU is the source handle truncated to 38 characters, so variants collapse onto one key. `index[key] = id` keeps **only the last one; the rest are unindexed forever.** They didn't fail processing — **there was no slot for them in the index.**
+- `key → id` is **1:N.** A dict that assumes 1:1 is the wrong structure → keep a separate `id → key` reverse index and let the forward side hold a list.
+- Applied: unindexed 2,443 → 2,143. 300 items resolved without touching the data.
+
+★ **If "unindexed: N" doesn't shrink round after round, suspect key collision, not processing failure.** A stalled metric can mean **"nowhere to land"**, not "the work didn't happen". The job exits clean every time; only the number refuses to move.
+
+Truncation length differs per system:
+
+| Where | Truncated at |
+|---|---|
+| Marketplace A, stored external SKU | **20 chars** |
+| Local index key (source handle) | **38 chars** |
+| Marketplace B, seller management code | **30-char limit** |
+
+Knowing "it gets truncated" is not enough. **The cut-off length defines the collision set.** The same data cut at different points per channel collides differently on each.
+
+**Key expansion must be applied at every lookup site**
+Put the suffix/prefix expansion into five of six batches and the sixth **stays unmatched forever, on its own.** "The fix is decided" and "the fix is in every call site" are different facts. `grep` every call to the lookup and count them before calling it done.
+
 ---
 
 ## Two checks before you use a field as an identifier
@@ -203,12 +416,33 @@ The review screen (GET) and the actual send (POST) **each** called the same buil
 | Progress file name | **①** — another script used **the same name with a different format** → ~200 items lost |
 | Category **name** | **②** — partial-match false positives. Fixed by pinning to leaf **ID** |
 | Two fields on one record | **①** — the key and the URL pointed at **different targets** |
+| Mail sender domain | **②** — it is the sending infrastructure's domain, so every store shares one value. **Second-stage check on the From display name** |
 
 **Rules**
 - **Never match on a single field without cross-checking.**
 - **Eyeball a sample of every match result.** A plan with dozens of mismatches nearly passed because "the names looked right."
 - Before creating a progress file, **check it isn't taken**: `grep -rn "filename" *.py`
 - **If one record has two fields pointing at the same target, compare them.** They can disagree with no error.
+
+**Prefix lookup on a truncated key: adopt only when unique**
+The external SKU is cut at 20 characters, so the original key can't be found and you fall back to a prefix search. Within one brand's 300 items, 42 collided on the first 20 characters. **If two or more candidates match, give up** and hand off to the similarity fallback. Unlinked beats mislinked.
+Measure link rate against a **fixed denominator** (what is registered). The map total keeps growing because other scripts keep adding to it; measured against the total, progress looks like nothing.
+
+**Extension and declared MIME are not evidence of format**
+PNG bytes uploaded with `image/jpeg` declared: upload 400. The filename and the declared type are labels a human attached; they fail check ②. **Judge the format by magic bytes**, convert to what the receiver accepts, then upload.
+
+**Repair procedure when two fields on one record disagree**
+46 of 1,928 records had a key and a URL pointing at different products — **a direct path to ordering the wrong item.**
+1. **The side registered in a separate index is canonical** — if the key exists in the SKU index, trust the key.
+2. **Regenerate the other side** (the URL) from the canonical one.
+3. **Validate that both fields name the same target at insert time.** Cheaper than reconciling afterwards.
+
+**The reverse of "different things, same name" — the same thing got two names**
+`.job_seen` and `.jobs_seen` both existed. One plural `s` **split the processing history across two files**: what A recorded B didn't know, so B reprocessed; what B recorded A didn't know, so A never sent. No error. It isn't a typo — it **is a separate file.**
+- State-file paths live in **one constant.** Never scatter them as string literals.
+- **Two similar names are themselves the signal** — singular/plural, underscore or not, an abbreviation.
+
+Exactly the mirror of the progress-file row above: that was different things sharing a name; this is one thing with two names. **Both come from not treating the name as a contract.**
 
 ---
 
@@ -231,11 +465,17 @@ The review screen (GET) and the actual send (POST) **each** called the same buil
 
 **Warning: raise the threshold and the other side blows up**
 Raising 0.80 → 0.92 to stop mismatches **exploded the unmatched count** (over half of 3,000 came back "cost unknown"). The real cause wasn't the threshold; it was that **there was no direct lookup path at all.** An indexed direct path comes before similarity matching.
+★ If the direct-lookup index doesn't auto-include new registrations, switching to the direct path returns the same result. **Refresh the index before switching paths.**
 
 **Unlinked beats mislinked.** Unlinked means "I don't know." Mislinked means **"I believe a wrong thing is known."**
 
 **Why this bites non-ASCII users**
 Fuzzy-matching libraries and their default thresholds are tuned on Latin-script data. Korean product names are short, dense, often written without spaces, and the same product appears with mixed Hangul / Latin / digits across sellers. Edit distance behaves differently on syllable blocks than on letters, so a threshold that is "safe" for English is loose for Korean. Calibrate on your own script; don't borrow the number.
+
+**Partial matching feeding a metric shown on screen turns a wrong value into a wrong decision**
+A shipping bot attached cost by partial name match, and a margin of `-101%` landed on screen as-is. Margin is a number a person acts on where they see it, so **a wrong value is a wrong decision.**
+- Attach cost by **exact SKU match only.**
+- ★ **If not found, show blank.** Fill in an approximation and you have put "believing a wrong thing is known" on the screen.
 
 ---
 
@@ -255,6 +495,13 @@ A short Korean token registered as a filter swallows unrelated longer words.
 **Fix (exception list, not a rule change)**
 Leave the boundary rule alone and add **true-positive protection exceptions**: if **every occurrence** of the term is inside an exception word's span, ignore it; if any occurrence is outside, it's a real hit. Concatenated true positives (`몽클레르패딩`) survive.
 Adding an exception is one line in a list; the matching rule itself is untouched.
+
+**In a first-match rule table, a generic pattern swallows compounds**
+A rule table mapped item words in English product names to Korean category words. `pen → 만년필` (fountain pen) captured `Tactical Pen`, so a tactical pen became a fountain pen; `mount → 거치대` (holder) captured `Rail-mounted`, so a rail-mounted product became a holder. Same swallowing, other direction: above, a short token swallows a long word; here **a generic pattern swallows a compound.**
+★ **Put specific patterns before generic ones.** In a first-match table, order *is* priority. Before adding a row, ask "which existing rows does this pattern swallow?"
+
+**Why this bites non-ASCII users**
+The table exists because the source names are English and the buyers search in Korean — a translation table is what turns a Latin-script listing into something a CJK search index will hit. Any shop localising into a CJK market runs a table like this, and the first-match trap ships with it.
 
 ---
 
@@ -353,148 +600,6 @@ There were days with zero loss. **Pure luck.**
 
 ---
 
-## A prefix-format value changes which operator is correct
-
-Putting a reason into the value is good — it records *why* something was handled that way.
-
-```
-done[x] = "ok:16371818883" / "skip:policy_excluded" / "manual:needs_review" / "fail2"
-```
-
-**Then the check must be `startswith`.**
-
-```python
-done_ok = str(v).startswith(("ok", "skip", "manual"))
-```
-
-★ **`!= "ok"` and `not in ("ok", "skip")` pass for every prefixed value.**
-`"ok:16371818883" != "ok"` is **True** → **every completed item gets reprocessed.** No error, normal logs, and **the queue never drains.**
-
-**Safer shape — separate the verdict from the detail**
-
-```python
-done[x] = {"state": "ok", "detail": "16371818883"}
-```
-
-Pack two things into one value and **every reader has to honour the parsing convention; one place gets it wrong and it leaks.**
-
-**The same operator hazard, other direction**
-
-| Value scheme | Wrong operator | Result |
-|---|---|---|
-| `"ok:123"` | `!= "ok"` | done read as not-done → **infinite reprocessing** |
-| `draft` / `draft_pending` | `== "draft"` | the second one is **silently dropped** |
-
-★ **When values share prefixes, both `==` and `!=` are dangerous.** One drops items, the other passes everything.
-★ **Decide the value format and the check code together.** Change the format later and the check flips silently.
-
----
-
-## Not saving before `continue` throws the decision away
-
-If a loop **changes state in memory and then continues**, a crash or an interrupt before the next flush **erases the decision itself.** The next run sees the item as if for the first time.
-
-★ **Save the moment you change state. Do not rely on a save at the end of the loop.**
-
-This is one layer away from "record failures too" — there the record was never *conceived*; here it was **made and then never written.**
-
-**Four shapes produce the identical symptom**
-
-Four different ways to get the same progress file wrong. **All four were hit in one day.**
-
-| | Shape | Symptom |
-|---|---|---|
-| 1 | Changed the value format, left the check | `"ok:123" != "ok"` passes → reprocess completed work |
-| 2 | Compared with `==` | prefix-sharing values silently dropped |
-| 3 | Marked `ok` from the response alone | no re-query → **the whole completion log is fiction** |
-| 4 | Did not save before continuing | the decision vanishes → **infinite reprocessing** |
-
-★ **None of the four raises an error, and all four leave the queue full.**
-So **if you fix one and the symptom stays, read it as "there is another shape", not "it is not fixed".**
-
-**The rule — you need all three**
-
-1. **Check with `startswith`** — with prefixed values, `==` and `!=` are both wrong
-2. **Save immediately** — the moment state changes
-3. **Confirm completion by re-query** — the response is not evidence
-
-★ **Miss any one and the queue stays full. And the symptom does not tell you which one you missed.**
-
----
-
-## Never read batch progress as an overall rate
-
-**Symptom**
-Watching the log during a batch, failures were **only 8**. "Almost done."
-
-**Cause**
-That was **the front of the batch only.** Sampling across offsets gave a completely different distribution.
-
-| offset | success |
-|---|---|
-| 0-4,000 | **92-95%** |
-| 6,000 | **44%** |
-| 8,000 | **0%** |
-| 9,400 | **84%** |
-
-**The real figure was 68.3%.**
-
-★★ **Sort order manufactures bias.** Sorted by creation date, **the front is the newest data and therefore the best maintained.** Estimating the whole from the front is always optimistic.
-
-**Fix**
-- **Sample across offsets** — not N from the front, but **N per band**
-- Log **how far you got**, not just the failure count. `"8 failures"` without a denominator says nothing
-- ★ **Look for bands at 0%.** An average hides them
-
-The same thing happened with sample size. The survey was run three times and **all three were wrong in the same direction.**
-
-| Sample | Defect rate |
-|---|---|
-| 500 | 36% |
-| 1,900 | 48% |
-| 4,900 | **69%** |
-
-★★ **If an estimate keeps getting revised in one direction only, it has not converged yet.**
-If it worsened every time you widened the sample and never once went the other way, **the current figure is still a lower bound.**
-**Small samples and front-loaded samples both err optimistic.**
-
----
-
-## Two metrics were naming the same set
-
-**Symptom**
-"Cost unknown" and "source unlinked" were counted as **separate problems, each getting its own fix.**
-
-**Reality**
-The 31.7% with no cost was **exactly the unlinked set.** No wonder adjusting the formula or the match threshold moved nothing — **there was nothing to compute from.**
-
-★ **Different metric names do not mean different targets.** **Count the intersection once** and you are done.
-
----
-
-## Key normalisation has two directions
-
-Keys for the same thing drift apart in **two** ways. Fix one and the other stays.
-
-| Direction | Cause | Symptom |
-|---|---|---|
-| **different to same key** | truncation cuts the distinguishing suffix | overwritten; **only the last survives** |
-| **same to different key** | re-registration **appends a suffix** | the lookup **never matches at all** |
-
-```
-B0734ZHGXK -> B0734ZHGXKAB -> ...R / RR / RRR
-```
-
-**Fix**
-1. **Expand candidates** — original / suffix-stripped / prefix-stripped
-2. Cross-check against a **lowercased, punctuation-stripped index**
-
-75% matched after applying this (6,657 of 8,858).
-
-★ **Some never match even with expansion** — they were minted under a different scheme entirely. **If you do not write the counterpart key at minting time, there is no recovering it later.**
-
----
-
 ## Match the Python version of the deployment target
 
 **Symptom**
@@ -552,6 +657,28 @@ At the time this was judged to mean **"there is no correction API"** — every g
 **Aside — a defect that was harmless because it never landed**
 This defect had **already been documented weeks earlier.** At the time the write never actually reached the downstream system, so there was no damage, and it was filed as "observed".
 ★★ **A defect that was harmless because it never landed has not been fixed.** It fires unchanged on the day the path opens.
+
+**The original incident's four causes — every one was a plausible-looking value passing**
+
+| Cause | Fix |
+|---|---|
+| Tracking regex `(\d{10,14})` **mistook an order number for a tracking number** | Drop the pure-digit pattern; accept **carrier-prefixed patterns only** |
+| Substring `shipped` in `"getting your order ready to be shipped"` **judged as dispatched** | A separate "not yet" pattern; split order-received from shipped |
+| An empty keyword **passed every filter** and wrote into the first order | No keyword → abort |
+| Two or more orders from one vendor → **wrote into the first one** | Return AMBIG, stop auto-entry |
+
+★ **A fix written in the notes and a fix applied at every call site are different facts.** When it recurred, ① and ④ turned out to be missing from that path. Count **every place that uses the value**, not the function you fixed.
+
+**The mirror image — a correct property used as a violation metric is a false-positive generator**
+Above, the defect was on the allow-list. This is the opposite. A checker for three tables used "scatter of text start-x" as its violation metric and reported all three as "alignment broken". In the right-aligned amount column the right edge was identical on every row; the scattered start was **nothing but differing digit counts.** In a centered column, badges of different widths scatter at both ends — **that is the definition of centered.** The disproof: after the "fix", not one measured value changed. The real culprit was a different column.
+
+| Alignment | Must match | May scatter |
+|---|---|---|
+| Left | start (left) | end |
+| Right | **end (right)** | **start** |
+| Center | center | both ends |
+
+★ **Before choosing a metric, answer "if this number is large, what is wrong?"** Without an answer, the number manufactures a misreading that looks like evidence — worse than a bare guess, because it has a figure attached.
 
 ---
 
@@ -678,3 +805,109 @@ The coefficient is an average and the rate is from a different moment. **The est
 - Flag records judged from estimates alone. 16% is **enough to flip profit into loss**
 
 ★★ **The longer the estimation pipeline, the more quietly a single bad input skews it.** This one had three inputs (price, rate, coefficient) — and **the currency itself had been wrong** at one point.
+## Shipping address parse comes back with the billing address inside it
+
+**Symptom**
+Shipping addresses are extracted from order emails, and a rule excludes "ships to our own address = self-purchase". The real shipping address is in another city, but **our own postcode is detected inside the shipping address** and the match is rejected.
+
+**Cause**
+The parser took **a fixed 300 characters** after the `Shipping address` header. In that mail format the `Billing address` block follows immediately. When the shipping address is short, 300 characters **swallow the whole billing block.** The billing address was our own, so the rule fired correctly on the wrong span. No error.
+
+**Fix**
+Cut the span at the **next header**, not at a length: from the start marker to the next marker (`Billing address`; failing that, the next blank line or section header). No fixed-length slicing.
+
+```python
+start = body.index("Shipping address")
+end = body.find("Billing address", start)
+ship = body[start:end if end != -1 else start + LIMIT]
+```
+
+**Verification**
+If the extracted span **contains the next block's header string, the extraction failed.** `Billing` inside a shipping address means the cut is wrong.
+
+★ **Extract a span by its end marker, not only its start.** A fixed length is an unfounded claim that the next block won't fit inside it.
+
+---
+
+## `can't adapt type 'UUID'` when passing a uuid parameter through psycopg2
+
+**Symptom**
+
+```
+psycopg2.ProgrammingError: can't adapt type 'UUID'
+```
+
+An INSERT or SELECT that takes a `uuid.UUID` value, or a `uuid[]` list, dies, and the endpoint above it returns 500. The same query runs fine in a SQL client.
+
+**Cause**
+psycopg2 does **not adapt `uuid.UUID` out of the box.** Pass a string and it works; pass a UUID object and it fails. Arrays fail per element.
+
+**Fix**
+Register the adapter **once**, right after import.
+
+```python
+import psycopg2.extras
+psycopg2.extras.register_uuid()
+```
+
+Once per process is enough. Calling it per connection is harmless but pointless.
+
+**Verification**
+Print the bound query with `mogrify` before sending it.
+
+```python
+cur.mogrify("SELECT %s, %s", (uuid.uuid4(), [uuid.uuid4()]))
+# b"SELECT '...'::uuid, ARRAY['...'::uuid]"   <- registered
+```
+
+★ **Register adapters once, in one place, at import time.** A 500 that happens from some modules and not others means the registration is scattered.
+
+---
+
+## Every product from one store shows a loss: the price field was not in USD
+
+**Symptom**
+The `price` from a source catalog API was written straight in as cost. Every product from certain stores came out **at a loss**, and the margin check, repricing, and sourcing verdicts were all invalid at once.
+
+**Cause**
+The catalog's `price` is in **the store's display currency.** Not USD. A Swedish brand was in SEK (×133 won), a Taiwanese brand in TWD (×44.5), a Japanese brand in JPY (×9.3). Nothing in the response says which — `1400.00` could be 1,400 USD or 1,400 SEK, and the number alone can't tell you.
+
+**The misdiagnosis**
+The numbers were large, so the diagnosis was **"it's in cents"** — and 65 records from one store were divided by 100, then restored. That store was plain USD. **A healthy store got broken.**
+**Two hypotheses — "cents" and "different currency" — produce the same number.** Looking at the number cannot distinguish them.
+
+**Fix — how to tell**
+1. **Compare the live product page's displayed price against the API `price`.** That is the deciding evidence.
+2. Guess the currency from the brand's home country first — Swedish, suspect SEK.
+3. The domain TLD is a clue but **not enough on its own** (plenty of European brands sit on `.com`).
+
+The correction covered 939 records in two currencies plus 14 in JPY.
+
+**Verification**
+After conversion, check that the cost/price ratio falls in a sane range **per store.** A store that is entirely at a loss, or entirely at 90% margin, has the wrong currency.
+
+★ **Before any irreversible bulk conversion, decide which hypothesis is true.** A value being present does not mean its unit is right.
+
+---
+
+## `text-align: right` shows in getComputedStyle but the buttons don't move
+
+**Symptom**
+The button cluster in a table's action cell was off by 82px per row. `text-align: right` was set on the cell; `getComputedStyle` confirmed `right`. The button coordinates **did not change at all.**
+
+```
+cell computed:  text-align: right                                  <- looks applied
+button x:       row0 [1475, 1558, 1674] · row1 [1393, 1518, 1634]  <- unchanged
+```
+
+**Cause**
+The cell's children were `<div class="d-flex ...">`. `text-align` is a layout rule for **inline content**; inside a flex container, placement is decided by `justify-content`. `text-align` is **inherited but never applied.** `getComputedStyle` reports the inherited value honestly — it's just not the layout algorithm that consumes it. The check looked at **the wrong layer.**
+
+**Fix**
+`justify-content: flex-end` on the flex child. The buttons' right edge converged on a single value (`1892`).
+If you don't know the structure, **set both** — `justify-content` / `align-items` for flex and grid, `text-align` for inline flow. They don't override each other.
+
+**Verification**
+Verify alignment fixes **by coordinates.** Measure button x, right edge, and column boundary with `getBoundingClientRect` and confirm they converge on the same value per row. A computed-value check answers "did the declaration arrive?"; only coordinates answer "did it do anything?"
+
+★ **A computed value is a necessary condition, not a sufficient one.** When the place you check is not the place that does the work, computed values and green checks both lie.

@@ -99,7 +99,7 @@ A full English edition is available: **[README.en.md](README.en.md)**. The Korea
 
 ## 이 지뢰들을 기록한 볼트 구조
 
-90건은 전부 한 Obsidian 볼트에서 나왔다. 그 볼트의 폴더 구조·frontmatter·노트 형식을 내용만 비워 **[vault-template/](vault-template/)** 에 넣어 두었다. 클론해서 폴더째 복사하면 같은 방식으로 자기 지뢰를 쌓기 시작할 수 있다. 자세한 설명은 [vault-template/README.md](vault-template/README.md).
+110건은 전부 한 Obsidian 볼트에서 나왔다. 그 볼트의 폴더 구조·frontmatter·노트 형식을 내용만 비워 **[vault-template/](vault-template/)** 에 넣어 두었다. 클론해서 폴더째 복사하면 같은 방식으로 자기 지뢰를 쌓기 시작할 수 있다. 자세한 설명은 [vault-template/README.md](vault-template/README.md).
 
 ## 지은이
 

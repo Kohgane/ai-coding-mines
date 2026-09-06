@@ -34,6 +34,15 @@ Auto-resolving with `-X theirs` silently overwrites what someone hand-fixed on a
 **Verification**
 On days when several actors touch the same file, `git log --oneline -3` after push to confirm your commit is actually there.
 
+**Suspected duplicate — don't compare drafts**
+The draft pasted into chat and what was actually pushed can differ (it gets rewritten to house style right before the push). Comparing drafts against each other yields a false **"another session added more and pushed it."** Judge from the real thing.
+
+```bash
+git log --format='%h|%s' origin/main -- '<path>'
+```
+
+One commit, and it's yours: no duplicate.
+
 ---
 
 ## No git identity in the container: rebase dies halfway
@@ -94,6 +103,11 @@ trap 'rm -f "$PIDFILE"' EXIT INT TERM HUP
 
 ★ **Check all three:** 1) the file is non-empty (`-s`) 2) the content is **numeric** 3) **that PID is alive**
 
+**Later case — the silence read as "no orders"**
+The same guard sat on an order-notification loop. Cron logged a clean exit 0 every run, and the stretch with no notifications at all was **read as "no notifications = no orders."** A second, unrelated cause was blocking the same path that day, so fixing the guard brought nothing back.
+
+★ **When silence has two causes, fixing one changes nothing visible.** If the silence survives your fix, suspect "there's another cause" before "the fix was wrong."
+
 ---
 
 ## Forget the `trap` on a lock file and every subsequent run dies
@@ -129,6 +143,15 @@ Same shape three times in one day.
 **About the `seen` set**
 A deduplication list that grows without bound eventually drives candidates to zero. Give it a **TTL**, or **count it against the population** and watch for exhaustion. Zero candidates may not mean "none"; it may mean **"all filtered out."**
 
+**The other direction — the safeguard lets the target through**
+The three above are safeguards that blocked the body. It also runs the other way.
+
+| Safeguard | Meant to catch | Actually did |
+|---|---|---|
+| Regex detecting bad tracking numbers | An order number typed into the tracking-number field | **Put `^\d{10,14}$` on the allow-list** — the exact shape of the incident |
+
+Back-test a detection rule against past incidents. If it doesn't fire on them, the rule doesn't exist. Details in chapter 02, "The validator had the very shape it was meant to catch on its allow-list."
+
 ---
 
 ## Shared hosting's process limit makes your watchdog kill its own child
@@ -163,6 +186,11 @@ When `fork` starts failing, **you can't even open a new SSH session.** Shells al
 ★ **Batches run one at a time, sequentially.** If "it seems stuck" keeps happening, suspect this.
 
 Image conversion tools need `-limit thread 1` + `MAGICK_THREAD_LIMIT=1` for the same reason. Without it, **everything fails while reporting "done"**; always count the output files.
+
+**Three more remedies**
+1. **A one-time pre-check before starting** — if `ps -u "$(id -un)" | wc -l` is over a threshold (say 12), skip this run. Count once at startup, not in a polling loop
+2. **`nice -n 10`** — lower the batch's priority so SSH stays responsive
+3. **Check for duplicate cron registrations** — `crontab -l | grep -c <name>` should be 1. The same entry registered twice fills the limit twice as fast
 
 ---
 
@@ -222,6 +250,11 @@ The runner **copied the canonical script into a date-stamped file and ran that.*
 
 **Same family**
 Values entered in a console or dashboard (keys, toggles, manual edits) **are not in the repo.** Patch from the local copy as the base and **the key gets overwritten with an empty value and the feature quietly turns off.** Re-download the live file before patching; confirm the value survived after. Losing it raises no error.
+
+**When the canonical file is right and the old rows are wrong**
+Some defects never show up no matter how long you read the code — **because the current canonical file is correct.** The canonical script set a flag to `True`; half the registered rows had `False`, and the defect appeared **only below a certain ID.** A clean ID boundary means not "a bug in the current code" but **"rows uploaded earlier by a different path (manual, an older script)."** The diagnostic is not a code audit. Split the population by ID range into generations, sample each one, and ask **"when was this uploaded, and by what."** If accounts had different upload paths, the same defect shows up in one account only.
+
+★ **A clean ID boundary says: look at the upload generation, not the code.**
 
 ---
 

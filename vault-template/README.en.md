@@ -60,7 +60,7 @@ Then:
 
 ## If you want example mines
 
-The `지뢰/` folder in this template is empty. 90 real entries written in the same format live one level up in this repository.
+The `지뢰/` folder in this template is empty. 110 real entries written in the same format live one level up in this repository.
 
 → **[../mines/en/](../mines/en/)** — AI Coding Landmines, a field guide. Six chapters: Windows · PowerShell, Python · DB, Git · Automation, AI Agents, Deploy · Infra, Write APIs. Korean originals in [../mines/](../mines/).
 
@@ -72,4 +72,4 @@ Port one entry from there into the `지뢰/_TEMPLATE.md` format and you will see
 
 ---
 
-This template is the structure and conventions, with the content removed, of the vault that was actually used to record [the 90 mines in this repository](../README.en.md). Same skeleton, emptied out.
+This template is the structure and conventions, with the content removed, of the vault that was actually used to record [the 110 mines in this repository](../README.en.md). Same skeleton, emptied out.

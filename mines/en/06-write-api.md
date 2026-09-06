@@ -36,6 +36,14 @@ Without it, **~700 items spun for nothing.** All rejected, all recorded as succe
 
 **And this is still not enough.** Row 3 in the table passes `ok()`. After every write, **re-fetch the single record** and check the real value. If there's a change-history endpoint, that is even more reliable.
 
+**The reverse direction: a success that looks like failure**
+A write's success response carried `message` as the string `"[]"`. Not an empty array; **a truthy string that looks like one.** Code that judged errors with `if msg:` recorded items that had applied correctly as failures. Empty-value representations vary by type: `""`, `[]`, `"[]"`, `{}`, `null`. **Judge by content, not by presence.**
+★ **A contaminated failure list invalidates every diagnosis built on it.** Those "failures" became the evidence for a wrong root cause; the real culprit was elsewhere. When one verdict function is wrong, throw away not just the batch result but every conclusion drawn from it.
+
+**A sixth shape: the rejected list went unread**
+A tracking-registration API returns `accepted` and `rejected` **as separate lists.** The wrapper ignored the rejected list and recorded every item as registered in the local DB. Items rejected because carrier auto-detection failed sat there untrackable. Count `accepted`, and alert when it is 0.
+★ **And `accepted` isn't the end either.** Registration can succeed while tracking returns not-found. "Accepted" means registered, not tracked. **Success has one more layer.**
+
 ---
 
 ## Ignore the HTTP status and a 400 reads as "0 rows"
@@ -56,6 +64,11 @@ The query window was 40 days; the API's ceiling is **under 32 days.**
 
 **Fix**
 Check the status code first in the query wrapper, and on non-2xx **raise instead of returning 0.** A function that returns the same value for "0 rows" and "query failed" will always deceive its caller.
+
+**Same mechanism, from a public geodata API**
+Raised a search-radius parameter to three times its ceiling (10,000 m). The API returned an error; the collector **exited normally with "0 documents."** Without reading the log it would have spun for hours.
+★ **When a parameter has a ceiling, don't raise the value; add call sites.** Instead of growing one center's radius, **tile: the center plus four points around it,** then dedupe by title. There are two ways to widen coverage, and a ceiling leaves only the second.
+★ **A collector never treats 0 rows as a normal result.** Log it as a warning. A real 0 costs a human one glance; a fake 0 has that warning as its only clue.
 
 ---
 
@@ -102,6 +115,15 @@ In approved state, **only a full PUT takes effect.**
 
 ⚠️ **This path creates one risk.** A full PUT passes **through a temporary not-for-sale state.** Run it in bulk and that many items go off sale simultaneously. **Split into small batches and re-fetch status after each to confirm the return.** Leaving items parked in draft is the real accident.
 
+**A failed full PUT is not "nothing happened"**
+A full PUT came back 400, but **the approval-request reset had already applied.** The rejected items were stuck in draft, which means off sale. **Write failure ≠ no change.** Re-fetch status after a failure response too.
+Two more from the same batch:
+- The success response's `message` came as the string `"[]"`, so `if msg:` logged success as failure. That is the reverse direction of "Five ways a success response lies" above.
+- The batch changed one field, but **an unrelated attribute-enrichment function was bolted onto it.** That function generated values outside the allowed list and killed the whole batch. ★ **"While we're at it" is where the failure rate comes from. One batch changes one thing.**
+
+**Safety net: sweep what is left in draft**
+A job runs every 30 minutes, lists everything still in draft, re-requests approval, and **alerts when the count exceeds a threshold.** Splitting into small batches is prevention; this caps how long an accident leaves items off sale.
+
 ---
 
 ## Fire the follow-up call immediately and it's ignored
@@ -135,6 +157,9 @@ Miscategorized means **delete and re-create.** And items under review or sanctio
 ★ **Find out which values must be final at creation before you write the creation code.** Don't assume "we'll fix it later."
 
 **Met the same property on another channel:** category ID immutable after creation (`NotChangable`). **When different channels impose the same constraint, it isn't coincidence; it's a property of the domain.**
+
+**Sub-resources have a different unit**
+A "stop sales" call on the parent item's path returns **404.** Stopping sales and changing stock work only on the **child resource (the option-level ID)**, never the parent. Before reading a 404 as "no such feature," **look for the child-resource path.** Which unit each operation binds to belongs on the same pre-coding checklist as the values that are final at creation.
 
 ---
 
@@ -179,6 +204,36 @@ if status.startswith('임시저장'):      # this is the one
 
 **Why this bites non-ASCII users**
 When statuses are human-readable strings in your own language rather than `IN_REVIEW`-style codes, the temptation is to treat them like codes. They aren't. They are prose, they get new variants without a changelog, and a suffix (`중`, roughly "-ing") turns one state into two. Enumerate them from live data, never from the docs.
+
+---
+
+## The list labelled "all statuses" was not all of them
+
+**Symptom**
+On an API where the list endpoint **requires a status filter**, records in one band never appear. They exist, but no combination of filters returns them.
+
+**Cause**
+One status was **missing from the filter list** — a short-lived intermediate band ("tracking number entered, not yet scanned by the carrier").
+
+★ Worse: that list had been written down six months earlier as **"expanded to all statuses"**. It actually contained a similarly-named value (`NONE`) and omitted the real one (`NONE_TRACKING`). **Because it said "all", nobody checked it again.**
+
+**Cost**
+Orders in that band were **unfindable for two days.** They needed action.
+
+**Fix**
+- Take filter values from **the actual enum, not the documentation**
+- ★ **The moment you write "all", the next person skips verification.** When you record a list, **record how you confirmed it**
+- ★ **Beware statuses whose names read as empty.** `NONE_TRACKING` sounds like "no tracking" but means **"not yet scanned"**. When the name misleads about the nature, it gets dropped from lists
+
+★★ **On a list API with a mandatory filter, a value you omitted is a record that does not exist.**
+Suspect the filter before concluding "there are none".
+
+**The other side is blocked too**
+Records in that band are invisible to the query but **may already be fully processed.** Assume they are unprocessed and retry the write, and you get `INVALID_STATUS`. **Invisible and unprocessed are different things.**
+
+**A list with a required filter shows only that parameter's value space**
+On a list endpoint where the status filter is mandatory, **any value you can't enumerate is a band you will never see.** When you need everything, don't fix the list; **find a filter-free single-record path.** The single-record path returned regardless of status, and carried fields the list never had.
+★ **Two paths built from the same segments are different resources.** `/{parent}/{id}/child` and `/{parent}/child/{id}` differ only in order; one takes an order ID, the other expects a different kind of ID and returns 400. Segment order is part of the identifier.
 
 ---
 
@@ -307,8 +362,16 @@ The platform **tightened required-field validation** in the meantime. Existing d
 **Caution: the opposite case exists**
 Missing required values → "replace the value" is right, but **duplicate values had to be collapsed to one, not filled.** 15 of ~130 failures were this. **Don't apply one remedy to every item.**
 
+**Block the source or the fix reproduces the defect**
+While existing items were being corrected, **the registration pipeline was still injecting the placeholder phrase into every required attribute.** However many correction runs went out, new registrations recreated the same defect. Correcting existing items and blocking the source are separate jobs; do the second one first.
+★ **The same phrase is allowed in one field and rejected in another.** The "see the detail page" placeholder passes in the disclosure fields and returns 400 in the attribute fields. Judge banned phrases per field.
+
+**Abbreviate the meta and the constraints vanish**
+The category meta gives each attribute a **unit, a list of usable units, and an input type.** The saved schema kept only name and required-flag. So a bare number like `"30"` went out without a unit and was rejected. **Preserve** unit and input type from the meta, **combine** the base unit onto bare numbers, and **block** units outside the usable list before the call (no list, no constraint; don't invent one).
+★ **The clause after "or" in the error message was the culprit.** A hypothesis built on the first clause cost days. **Every clause in the message is a suspect.**
+
 **Why this bites non-ASCII users**
-"See description" fillers are a marketplace-specific idiom; on Korean platforms `상세설명 참조` was accepted for years and then blacklisted. If your market has an equivalent boilerplate phrase, expect the same policy flip, and expect it to hit only on re-write.
+"See description" fillers are a marketplace-specific idiom; on Korean platforms `상세설명 참조` was accepted for years and then blacklisted. If your market has an equivalent boilerplate phrase, expect the same policy flip, and expect it to hit only on re-write. And the flip is per field: the disclosure block still tolerates `상세페이지 참조` ("see the detail page") while the attribute block rejects it, so a banned-phrase list has to be keyed by field, not by marketplace.
 
 ---
 
@@ -352,26 +415,98 @@ If the platform reissues `deploymentId` at registration, this fix may still not 
 
 ---
 
-## The list labelled "all statuses" was not all of them
+## PUT returns 200 SUCCESS but one field never changes
 
 **Symptom**
-On an API where the list endpoint **requires a status filter**, records in one band never appear. They exist, but no combination of filters returns them.
+The PUT that turns on the customs-clearance flag returns **200 `SUCCESS`.** Re-fetch, and the value is unchanged. Change the payload, change the state, same result. Every one of several thousand items was like this.
 
 **Cause**
-One status was **missing from the filter list** — a short-lived intermediate band ("tracking number entered, not yet scanned by the carrier").
+When the item's **delivery-method field** holds a particular value, the customs-clearance flag is **ignored.** Nothing is wrong with the flag itself; **another field decides its fate.** And the delivery-method field is fixed at creation: try to change it and you get 400.
 
-★ Worse: that list had been written down six months earlier as **"expanded to all statuses"**. It actually contained a similarly-named value (`NONE`) and omitted the real one (`NONE_TRACKING`). **Because it said "all", nobody checked it again.**
+"Some fields can only be set at creation" and "A field can be one-way" above are about a field that **won't change itself.** This one **won't change and blocks another.** New shape.
 
-**Cost**
-Orders in that band were **unfindable for two days.** They needed action.
+★ **Don't stare at the field that won't take. Find the higher-level setting that governs it.** You can look at the dead field all day and the cause won't appear, because the culprit is a different field.
+
+**Second case: a "missing" 400 isn't asking for a value**
+Registering a branded item returned 400: `"product identifier missing."` Filling in the identifier made it **keep getting rejected.**
+**When the brand field has a value,** that validation fires; **leave the brand empty and the validation disappears.** "Missing" didn't mean "supply a value." It meant **"this combination is invalid."**
+
+★ **The field an error message names is rarely the cause.** When you're blocked, don't only look for a value to fill in; **look for the field that triggers the validation and turn it off.** (Brand is one-way, so starting empty is the direction that keeps options open.)
+
+**This is the opposite prescription from an entry above. Keep them apart.**
+"Passing at creation time doesn't mean passing now" says **"replace the value, don't delete."** That case is a required attribute: remove it and you get a different error. This case has **a separate field that triggers the validation.** Different mechanism, opposite fix. **Don't apply one remedy to every 400.**
 
 **Fix**
-- Take filter values from **the actual enum, not the documentation**
-- ★ **The moment you write "all", the next person skips verification.** When you record a list, **record how you confirmed it**
-- ★ **Beware statuses whose names read as empty.** `NONE_TRACKING` sounds like "no tracking" but means **"not yet scanned"**. When the name misleads about the nature, it gets dropped from lists
+- The governed field can't be repaired, so **re-create the item with a valid combination.** Don't delete the original; deleting halves your exposure.
+- In the creation code, **settle the governing field first.** It can't be changed later.
 
-★★ **On a list API with a mandatory filter, a value you omitted is a record that does not exist.**
-Suspect the filter before concluding "there are none".
+**Verification**
+★ **Opening a sample of correctly registered items beats the docs.** The second case was answered not by reasoning but by **opening four items that were selling fine:** all three identifier attributes were empty strings. A payload that passes already exists in your own account. Get a working one and lay it side by side.
+And **peel one layer and the one beneath appears.** After the 400s stopped, "normal processing resumed, ~2,500 items" went into the log. Hollow: the 400 was gone and the value still wasn't landing. A rejection disappearing and a value applying are different events.
 
-**The other side is blocked too**
-Records in that band are invisible to the query but **may already be fully processed.** Assume they are unprocessed and retry the write, and you get `INVALID_STATUS`. **Invisible and unprocessed are different things.**
+---
+
+## The watch queue is empty but the rejections exist
+
+One queue watching an approval workflow produced three of these in three days. Each is silent: no exception, no log line, and **an item leaves observation.**
+
+**① The card's title promises more than its source filter returns**
+The dashboard card was titled "rejection watch," and its only source was the watch queue. That queue selects `submitted` and `unknown` and **structurally excludes `rejected`.** The card next to it showed "REJECTED: 2" while this one said "no rejections under watch." **The screen contradicted its own title.**
+The queue was not widened (watch means "not yet judged," and widening blurs that). A **separate read function** feeds the card, which merges both and labels them apart.
+★ **A card title is a contract.** When a filter narrows the meaning, **narrow the title or widen the source.** One of the two.
+
+**② Status was judged from a side signal instead of the authoritative field**
+The status verdict looked only at **whether a `comment` existed.** So a one-line memo that was not a rejection ("saved as draft," "reviewer assigned") set the item to `rejected` and **pushed it out of the queue.**
+Two layers. A **fallback** returned the last comment whenever no rejection marker was present (the intent was "prevent silent omission"). And the verdict function, while already holding the authoritative state field, decided `"rejected" if comment else "unknown"` on the presence of text alone.
+★ **"There is a reason" and "it is rejected" are different propositions.** A fallback meant to prevent silent omission turned non-rejections into rejections and produced a **quieter omission.** **A safety net promoted to a verdict is itself a defect.** Don't remove the fallback; narrow its job. The memo stays so a human can read it on screen; the status comes from the authoritative field only.
+★ **Beware the half-fix.** Fixing the verdict alone is not a fix. If the queue's accepted-status list doesn't include the new unsettled state, the verdict is right and **the row still leaves the queue.** Verdict and queue list are two implementations of one idea, so bind them with a contract: the set of unsettled states is a subset of the states the queue accepts.
+And the post-mortem didn't reach the bottom on the first pass. The first write-up said "this behavior is correct; the missing re-arm is the defect." That was wrong too. **Fix one layer and the next one shows.**
+
+**③ The remedy never updates the observed status**
+The resubmit function (re-request approval) sends the request to the marketplace and returns `{success: true}`. It **doesn't touch** the ledger's status. So apply the remedy to a row that has already left the queue (`rejected`): the request really goes out, the item really re-enters review, and the ledger still says `rejected`, so **the next sweep never looks at it.** Nobody checks the result.
+**The harder you apply the remedy, the further out of observation the item goes.** That is the shape of this defect.
+It is the reverse of chapter 02, "upsert rolls back workflow state." There a collector reset the status and erased a human's action; here an action leaves the status alone and kills the watch.
+★ **An action that changes state must also change the observed state.** "The ledger records what the marketplace answered" is a sound principle, but *we asked again* is also a fact, and that fact decides whether the item is under observation.
+- Re-arm the ledger to `submitted` **only on success.** Marking a failure as "back in review" is a fake number.
+- Re-arm on **every resubmit path.** Four paths bottomed out in the same function; hook one and the other three keep cutting the chain.
+- A retroactive re-arm button touches the ledger only, with no marketplace call. The next scan overwrites it with the real state, so it self-heals.
+
+**Verification**
+Print one line per sweep: `in queue N · graduated M · saved a · unknown b · approved c`. Unless you count how many items sit in which state, none of the three is visible. And there is an order: after fixing the verdict, a ledger that already says `rejected` won't be caught on the first sweep. **Re-arm first; it shows from the next sweep.** Miss that order and you get "I fixed it, so why isn't it there?"
+
+---
+
+## A PUT with no body gets 411 Length Required
+
+**Symptom**
+The approval request is **a PUT with nothing to send.** The response is `411 Length Required` with an **HTML** body (`<html><title>411 Length Required</title>`). Every other response from this API is JSON, so the first reading is "the relay is broken." It isn't.
+
+**Cause**
+Common HTTP clients **send no `Content-Length` header at all** when you give them no body. The gateway rejects a PUT without a length with 411. The HTML is the gateway's own error page, passed through the relay untouched. The relay didn't strip a body; **there was never a body to carry.**
+★ **Having no body and not declaring a length are different things.** HTTP allows the first; the gateway refuses the second.
+
+**Fix**
+Don't invent a payload (`{}` is an arbitrary value too). **Send an empty body and declare length 0 explicitly.**
+
+```python
+body = b''
+headers['Content-Length'] = '0'
+```
+
+(If the request signature covers only method, path, and date, changing the body leaves the signature alone; this fix doesn't touch auth.)
+
+**There are two gates**
+Fixing the client didn't finish it. The request leaves through a **fixed-IP relay**, so there is one more gate. The relay set curl's POSTFIELDS **conditionally** when the body was empty.
+
+```php
+if ($body !== null && $body !== '') curl_setopt($ch, CURLOPT_POSTFIELDS, $body);
+```
+
+It reads as defensive. "Why set an empty body?" That is the trap. **Setting an empty body is what declares length 0,** so here the condition is the defect. Always set it, even when empty, and discard the caller's `Content-Length` in favor of one recomputed from the actual bytes (a mismatch and the gateway cuts you off).
+★ **Every hop adds a gate.** Fix your side and the relay can still drop it. The first fix's mock exercised only the direct leg and went green, which is why this was found late.
+
+**Blast radius**
+One 411 spread four layers deep: approval request never lands → item stays in draft → draft has no reason text, so the watch classifier files it as "unclassified" → the dashboard card can't show it (① in the previous entry). **Two days without appearing anywhere on screen.**
+
+**Verification**
+★ **The error moving to a different layer (411 → 401) is the evidence of repair.** After the relay deploy, the same call returned 401 instead of 411. 411 gone means curl attached a length; the remaining 401 belongs to the auth layer. The transport layer is finished, so you can move on to the next one. An error that moves is better than one that goes quiet. Then `success: true`, then the item entered the review queue: **each step is the evidence for the next.**

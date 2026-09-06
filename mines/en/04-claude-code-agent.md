@@ -122,6 +122,24 @@ An intended fix has to **update the baseline with the re-extracted value.**
 **The lazy-import trap**
 `try: from PIL import Image / except: return None` is the canonical pattern for collect-only CI safety, but **when the package is missing it silently disables instead of raising.** Any third-party import wrapped in a lazy import gets **a requirements check + an explicit contract.** "The tests pass so it's there" is not evidence: the tests run in the same container.
 
+**Fourth confirmed case: the mock checks a path production never takes**
+An external API error was fixed and reported as "reproduced, then passing" with a mock. But the mock was patched onto the **direct-call leg**, and production sends the same call through a **relay**. The branch is chosen by a single env var, and **the sandbox default is the quiet side (direct)**, so it went green. With the relay switched on and the same code run again: direct leg called 0 times, relay called once. **Production never once walks the path the test checked.** The call site is a single gateway, so reading the code does not tell you which leg runs.
+1. **The test sets the branch env itself.** Rely on the default and you only ever test the quiet side
+2. **Assert zero calls on the other leg**, making "the patch point is the production path" a contract
+3. A path that forks on environment gets a contract **on both legs.** Cover one and the other is a blind spot
+
+"I reproduced it" only holds once you say which code you reproduced. **Green on the wrong path is worse than no green**: it makes you believe it is fixed.
+
+**The mirror of the green trap: the exoneration trap**
+An icon looked broken in a captured screenshot. The agent ruled: "capture artifact. A file-based render just can't fetch the static-asset path; it's fine in the app." The mechanism was plausible and the conclusion was wrong: the same breakage turned up in a screenshot taken live.
+
+An artifact verdict is a verdict that **ends the investigation.** Once a spot is filed under "not our problem," nobody looks at it again, so when the verdict is wrong the defect stays live. What went unseen gets seen eventually; **what got exonerated never gets searched for.** And a correct mechanism is **not evidence that it caused this breakage.** The burden sits on the expensive side, and a live check was replaced with an explanation.
+- Before calling it an artifact, **show it renders correctly live.** If you can't, say only "may be a capture-environment difference; needs live confirmation." That is not an exoneration
+- Ask **where a screenshot came from** first. If it is live, the artifact hypothesis is out before it starts
+- Even without a repro, **a repair that removes the dependency is possible.** Inlining the external file reference rules out 404, CSP, and deploy omissions in one move. You can remove the risk without knowing the cause
+
+★ **"Not our problem" is the most expensive conclusion, so it demands the most expensive evidence.** The green trap makes you skip verification; the exoneration trap makes you stop investigating. The more a verdict halts investigation, the heavier its evidence has to be. Even without a repro, the dependency-removing repair (inlining) is still available.
+
 ---
 
 ## A hypothesis without a control group was always wrong
@@ -220,3 +238,49 @@ Immediately beforehand, a **tracking-number format rule (carrier prefix, or 12+ 
 That same morning there had been an incident where **a validator had the defect it was meant to catch on its allow-list.**
 
 ★ **In both cases the rule was inside the code and the behaviour was outside it.** Putting a rule in the code and **being bound by that rule yourself** are different things.
+
+---
+
+## Setting vanished on every device after a "local cleanup" git rm
+
+**Symptom**
+An agent ran `git rm` on an editor's settings directory, "cleaning up local settings." From the next pull, **the setting (a graph-view colour palette, say) was gone on every device.**
+
+**Cause**
+The file was a **deliberately tracked shared setting**, whitelisted through a `!` exception in `.gitignore`. The rest of the directory was untracked, so the one whitelisted file went unnoticed, and the folk rule "editor settings are local" justified the `git rm`. Deleting a tracked file travels with the commit. It is not a local cleanup, it is **a delete on every machine.**
+
+**Fix**
+Check tracking intent before deleting.
+- `git ls-files <path>`: any output means it is tracked
+- `git check-ignore -v <path>`: a matching `!` rule means someone explicitly decided to track it
+
+A whitelisted file does not get deleted. To change the value, edit the file and commit. The rest of the directory's untracked files stay untracked, which is correct.
+
+**Verify**
+Before committing a deletion, list it with `git diff --cached --diff-filter=D --name-only` and run `git check-ignore -v` on each path. No `!` match may appear.
+
+★ **A tracked file is one somebody decided to track.** A whitelist entry is a decision, not an accident.
+
+---
+
+## Comment says "measured: N rows" but no code ever computes N
+
+**Symptom**
+A code comment read "measured on <date>: N rows." From that one line grew a load claim ("we re-query N rows every cycle"), and a whole work track was planned on top of it, dry-run counting procedure included.
+
+Measured for real: **that re-query never existed.** Zero queries anywhere in the codebase aggregate that number. The system looks at a different population, and the actual scan count that day was 0. The track was closed for having no target.
+
+**Cause**
+- **A comment is a snapshot, not a value.** "Measured on <date>: N" means *a screen showed N that day*, not *this code handles N*. Those are entirely different claims
+- A comment sits next to the code, so **it reads like a property of the code**
+- **A number with a source attached is more dangerous.** An unsourced number gets doubted; a number with a date and a source looks like a citation and makes the reader skip verification
+
+**Fix**
+- Before planning a track on a number, **find the code that computes that number first.** If you can't, it is not data, it is **an observation log**
+- When leaving a measurement in a comment, say **what it is a value of** (eyeballed on an external dashboard is not our own aggregate)
+- Pin load and scale claims in a contract. If a query producing that number appears later, the contract breaks and you find out
+
+**Verify**
+For every number in the claim, answer "which code path computes this value?" If the answer is "a comment," treat it as unsupported and measure again.
+
+★ **Before building a track on a number, find the code that produces it.**

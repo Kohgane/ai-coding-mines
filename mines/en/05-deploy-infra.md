@@ -42,6 +42,9 @@ Whenever you add or move a path the runtime reads, **three-way check**: (1) Dock
 **Verification trick (when you can't pull the base image)**
 `.dockerignore` has nothing to do with the base image. Build the same `COPY` lines `FROM scratch` and context inclusion is verified as-is: if excluded, it fails with "not found in build context."
 
+**Inspecting a shell-less scratch image directly**
+`FROM scratch` has no shell, so `docker run … ls` is not an option. Extract without running: `docker create <img> /x` → `docker cp <cid>:/app/data ./out` → `ls -la ./out`, then **compare sha256 against the source in the repo.** Same bytes or it didn't land.
+
 ---
 
 ## On a 512MB instance, ffmpeg takes the whole worker down
@@ -291,6 +294,10 @@ Production > Create new release > (Add from library) > Review release → **pres
 - **Two bundles (versionCode 1 and 2) in one release errors out.** Drop the lower one.
 - The four recommended actions (edge-to-edge, deprecated APIs, orientation restrictions, R8) **are not blockers**
 
+**Where managed publishing is switched off, and what the "recommended actions" really are**
+Managed publishing is turned off in the **dropdown at the top** of the publishing overview. If you want an immediate release, turn it off before approval.
+The recommended-actions warnings (edge-to-edge, deprecated APIs, orientation restrictions, R8) are usually caused by **an outdated helper library.** They clear on their own on the next build after bumping it, so don't chase them one by one.
+
 ---
 
 ## The upload key fingerprint the console shows ≠ my keystore's fingerprint
@@ -460,3 +467,108 @@ This time the cleanup job **disarms itself once usage drops to the target**.
 
 ★ **A threshold a person remembers only fires during a crisis. A threshold in the code fires in peacetime.**
 "We'll clean it up when it gets close" is not a plan; it is **a commitment to hitting it again.**
+
+---
+
+## NXDOMAIN after moving nameservers to Cloudflare: records weren't imported
+
+**Symptom**
+After handing the nameservers to Cloudflare at the registrar, a host starts returning **NXDOMAIN** at some point. Not an error, just "no such name" — monitoring doesn't catch it, and every external API call routed through that host stops. Separately: you add an MX record in the hosting panel and mail still isn't arriving after 30 minutes.
+
+**Cause**
+1. Cloudflare Email Routing, Workers and the proxy only work when the zone's **nameservers are Cloudflare**, so you move the whole NS delegation, not a copy of the records. Cloudflare scans and auto-imports the existing records, but **it doesn't guarantee all of them.** Anything it missed dies silently the moment NS propagation completes (minutes to 48 hours).
+2. Once the authoritative nameservers are Cloudflare, **the hosting panel's zone editor is no longer authoritative.** MX and A records added there are ignored.
+3. If the A record a mail relay or MX target points at has the **proxy on (orange cloud)**, mail doesn't arrive. It must be **DNS only (grey cloud)**.
+
+**Fix**
+- Before moving NS, dump the whole existing zone with `dig` into a file. After the move, diff it and add whatever is missing in the Cloudflare dashboard.
+- Edit records only in the Cloudflare dashboard. If a panel edit "isn't taking", suspect this first.
+- Prefer not to move the NS of a zone that a relay or API depends on. Put mail in a separate zone.
+
+**Verification**
+Ask the authoritative server directly — `dig @<authoritative NS> <host> A` — then make **one real API round trip** through the relay path. Not a ping; a real call.
+
+★ **The moment the nameservers move, the screen you edited yesterday changes nothing.**
+
+---
+
+## A PaaS shared outbound IP in a partner allow-list stops working days later
+
+**Symptom**
+A partner API enforces a **caller IP allow-list**. You register your outbound IP, it works for days, then one day it's blocked again. Nothing in the code changed, so it presents as "what worked yesterday doesn't today" and takes a long time to trace.
+
+**Cause**
+The address you registered was the **PaaS's shared outbound IP.** It's a shared range; the provider changes it, and on that day the allow-list is wrong. The admin screen was **displaying that IP as a hardcoded value**, so the operator trusted it and registered it.
+
+**Fix**
+- Route IP-gated partners through **one fixed-IP relay** and register **only that one IP.**
+- **Distinguish routes that go via the relay from direct ones.** Writing the relay IP for a partner you call directly is the wrong answer — that side needs every PaaS outbound IP or a different arrangement. And some partners require **API access approval before the IP even matters**; unapproved, a valid key is still rejected.
+- Derive the outbound IP shown on screen **from config, never hardcode it** (config value → relay URL host → DNS, in that order). When unknown, return blank so the screen says "could not determine."
+- Keep the "does this partner go via the relay" decision in one place. Re-deciding it in the UI guarantees the two diverge.
+
+**Verification**
+One **real call** per route: relay partners through the relay, direct partners straight from the PaaS. Change the config and confirm the displayed IP follows it.
+
+★ **Never hand out "the IP that works today." Only an IP that is the same tomorrow.**
+
+---
+
+## Gmail IMAP [AUTHENTICATIONFAILED] Invalid credentials is usually not a typo
+
+**Symptom**
+`imaplib` login fails with `[AUTHENTICATIONFAILED] Invalid credentials`. You re-check the password; same result. Time lost in the same spot every time.
+
+**Cause**
+It's usually not a wrong password. Three causes:
+1. **You used the account password.** Gmail refuses IMAP logins with the regular password. Turn on 2-step verification and issue a 16-character app password.
+2. **IMAP is disabled.** Settings → Forwarding and POP/IMAP → Enable IMAP. Recent Gmail has it on by default and may not show the toggle at all — then this isn't your cause.
+3. **The app password was revoked.** It leaked, you reissued it, and the env file was never updated. The code keeps sending the old value.
+
+**Fix**
+- Store the app password as **16 characters with no spaces.** The issuing screen shows it in groups of four; drop the spaces when pasting.
+- When you reissue, **update the env file in the same sitting.** Issuing and applying is one task.
+- Confirm `imap.gmail.com:993` (SSL). The STARTTLS port gives a different error.
+
+**Verification**
+From a shell, run one line of `imaplib.IMAP4_SSL('imap.gmail.com', 993).login(...)` with **the exact value from the env file**, not through the app's code path. Passes → the app is at fault. Fails → the credential is.
+
+★ **"Invalid credentials" more often means "not accepted this way" than "wrong value."**
+
+---
+
+## A large file pasted as a heredoc lands with broken newlines and an early EOF
+
+**Symptom**
+A 100-plus-line file was exported into chat as a `cat > file <<'EOF'` block and the operator pasted it into an SSH session. The live copy was **overwritten with a syntactically broken file** and every call through that path died. Chapter 01's heredoc-emoji entry is the encoding layer; this is the layer where **the paste itself breaks newlines and EOF.**
+
+**Cause**
+Pasting is not copying a file.
+- Terminals and SSH clients stream long input line by line and insert auto-newlines and line-ending conversions. Some auto-align brackets or smart-convert quotes.
+- If the body contains a token that resembles the delimiter, **EOF is caught early.**
+- **The longer the file, the higher the odds.** A method that worked on short snippets betrays you on a big one.
+
+**Fix — download, check, swap atomically**
+```bash
+cp app.php app.php.bak.$(date +%F-%H%M)        # 1) back up first
+curl -fsSL -H "Authorization: token $TOKEN" \
+     -H "Accept: application/vnd.github.raw" \
+     "https://api.github.com/repos/<org>/<repo>/contents/<path>?ref=main" \
+     -o app.php.new                              # 2) raw + token, into .new
+php -l app.php.new                               # 3) only if the syntax check passes
+mv app.php.new app.php                           # 4) mv = atomic swap
+```
+- A private repo needs the token; the bare raw URL returns 404.
+- Download into `.new` so that **the current file survives an interrupted transfer.**
+- `mv` is atomic on the same filesystem, so **there is no instant where a half-written file is served.** Rollback is `mv` from the `.bak`.
+
+**Same root, second incident — the replacement invented its secret loading**
+The replacement uploaded to clean up the heredoc incident killed the relay again. Not syntax this time: **the key.** The replacement read the key with `getenv()`; the original read it from a secrets file above the docroot. **Shared-hosting PHP cannot see a shell `export`** — an environment variable set in SSH does not exist in the web request process.
+The blind spot: "I couldn't see the current file, so I rewrote it from the protocol contract." Request and response shapes were documented, but **secret loading, paths and side logic are outside the contract**, and those blanks got filled in plausibly. Plausible is invented.
+- **Never write a replacement from the protocol contract alone.** A contract is an interface, not an implementation.
+- Secrets, paths and side logic only **after measuring the original.** If you can't see it, ask for one line: `grep -n 'getenv\|secret' <file>`. If it can't be measured, leave that part blank and say so.
+- A syntax check cannot catch invented secret loading. Add a **key-loading grep** to the deploy gate.
+
+**Verification**
+`php -l` passes, the key-loading grep matches the original, and one real call on live gets through authentication.
+
+★ **The delivery mechanism is part of the design.** Correct content moved the wrong way still breaks live. "Print the whole file into chat" is for a human to read, not for a machine to transcribe — a machine gets a link and a verification procedure. Backing up first is not a cost; it's insurance.
