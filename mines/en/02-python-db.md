@@ -615,3 +615,66 @@ Two days earlier, after a 404 on a different endpoint, this had been recorded:
 
 ★★ **Writing a rule down and retrieving it at the moment of judgement are two different capabilities.**
 Recording it is not enough; it has to sit **somewhere that fires automatically just before the judgement** — a checklist, a lint, a review question — to actually work.
+
+---
+
+## In a list of patterns, the order is the priority
+
+**Symptom**
+Several rules classify a string by shape. **The specific cases got swallowed by the general one.**
+
+```
+matches 2-9-2 shape  -> A     <- general pattern first
+starts with 1Z       -> B
+starts with LS       -> C
+```
+
+Both `1Z...` and `LS...US` match the general pattern first, so **everything classifies as A.** Rules B and C are **never reached.**
+
+**Fix**
+
+```
+1Z, LS, 4PX  (specific prefixes)  <- first
+2-9-2, N digits (general shapes)  <- after
+```
+
+★ **In a pattern list, the written order is not documentation order — it is execution priority. Treat ordering as design.**
+
+**Second time**
+
+The same shape had been hit before, in product classification: `mount` inside `Rail-mounted` matched "mount bracket", and `pen` inside `Tactical Pen` matched "fountain pen". A short general token placed first means **the longer specific token is unreachable.**
+
+★ **The mistake repeated in a different domain after being learned once.** Every time you write a new rule list, check **"is the specific one above?"**
+
+---
+
+## "It was accepted" is not "it was correct" — fallback values that disable features
+
+**Situation**
+When you must send a value that isn't in the accepted list, a catch-all value that "takes anything" is tempting.
+
+**The trap**
+That catch-all may be **a value that turns a feature off.** Here it meant **"no tracking information"** — the request passes, but **the end user loses tracking entirely.** In that state the record also **cannot be corrected from the admin UI.**
+
+★ **An API accepting a value does not mean the value is semantically right.**
+★ **When choosing a fallback, look at what that value turns *off*, not what it turns on.**
+
+**What was done instead**
+Carriers missing from the list were **identified by tracking-number format and mapped to the closest real code.** The option that kept tracking alive was chosen.
+
+---
+
+## Keep derived estimates and source records in separate fields
+
+**Symptom**
+Cost was computed as `foreign price x rate x coefficient`. Compared against the actual payment record, it was off by **16%** (estimate 115,470 vs actual 99,000).
+
+**Cause**
+The coefficient is an average and the rate is from a different moment. **The estimate isn't wrong in itself — but a source record existed and was going unused.** The payment confirmation email had the real figure.
+
+**Fix**
+- **Create a dedicated field for measured values.** When present, it always wins
+- ★ **An estimate is a stand-in for a missing source, not an equal.** Mixed into one field, you can no longer tell which you have
+- Flag records judged from estimates alone. 16% is **enough to flip profit into loss**
+
+★★ **The longer the estimation pipeline, the more quietly a single bad input skews it.** This one had three inputs (price, rate, coefficient) — and **the currency itself had been wrong** at one point.
