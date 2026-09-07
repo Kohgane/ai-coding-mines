@@ -510,3 +510,52 @@ One 411 spread four layers deep: approval request never lands → item stays in 
 
 **Verification**
 ★ **The error moving to a different layer (411 → 401) is the evidence of repair.** After the relay deploy, the same call returned 401 instead of 411. 411 gone means curl attached a length; the remaining 401 belongs to the auth layer. The transport layer is finished, so you can move on to the next one. An error that moves is better than one that goes quiet. Then `success: true`, then the item entered the review queue: **each step is the evidence for the next.**
+
+---
+
+## A "duplicate option value" error was about IDs, not values — and errors come in layers
+
+**Symptom**
+Expanding options (variants) and sending a full PUT returned `400`:
+
+> `duplicate option value`
+
+It says **value**, so we looked at attribute values. Allowed lists, formatting, duplicate combinations. **Three fixes, three dead ends.**
+
+**Cause**
+Variants were being built by `deepcopy`ing one prototype — and **the copies carried the prototype's identifier field along with everything else.** Every variant went out **carrying the same ID.** What the platform called a "duplicate option value" was **the option identifier, not an attribute value.**
+
+★★★ **`deepcopy` does not copy only "values." An identifier is a value too.** Prototype cloning is **an operation that manufactures sameness**, so the one field that must be unique quietly rides along.
+
+★ **Make "clear the ID fields immediately after cloning" the rule.** "Each one fills its own in later" **fails silently the first time you miss one** — that record ships with the prototype's ID. Clearing makes a miss visible; overwriting makes a miss look normal.
+
+★★ This is not a badly designed identifier. The field was correct and unique. **We broke the uniqueness by making copies.** Uniqueness usually breaks by **truncation** (a length limit collapsing distinct keys) or by **inheritance from a parent**; **cloning is the third path.**
+
+**★★★ The noun in the message does not name the cause**
+There is no guarantee the platform's word and your word mean the same thing. "Value" pulls you toward values — but that word belongs to **their schema's vocabulary.** The same shape shows up elsewhere in this collection: a "missing field" message was really about **the validation that field switches on**, not the field.
+
+★ **An error string is location information, not cause information.** It says look near here; it does not say this is the culprit.
+
+**★★★ Truncating logs at 100 characters keeps the answer off your screen**
+**The full message contained the list of duplicated IDs.** The answer was inside the response the whole time; the log format was cutting it off.
+
+★★ This collection already carries the rule **"treat every clause of the error text as a suspect."** We wrote it down and stepped on it again — last time by not reading past the `or`, this time because **the full text was never retained at all.**
+
+★ **Writing down a rule and fixing the log format are different pieces of work.** → **Never truncate a failure response.** Summarize successes. Failures are rare, and rare is exactly what you can afford to log in full.
+
+**★★★ The next layer — fixing one reveals the next**
+Clearing the IDs produced a different error:
+
+> `cannot delete an item that is on sale`
+
+In a full PUT, **the list you send is the final state.** Sending a new list without the existing items reads as **a delete request.** Items on sale cannot be deleted, so the correct shape was **keep the original as the first item and append the variants after it.**
+
+| Layer | Message | Actual cause |
+|---|---|---|
+| 1 | `duplicate option value` | cloning carried the identifier |
+| 2 | `cannot delete an item that is on sale` | existing items must be retained |
+
+★★ **The first error going away is not the same as being fixed.** A next layer appearing is the normal course. If no layer appears, **confirm by re-reading the resource** — which is the first sentence of this chapter.
+
+**How to verify**
+★ **One layer at a time, changing one hypothesis per retry.** Fix three places at once and you will not know which one peeled the layer. And assert identifier uniqueness on the payload right before sending: `len({x.id for x in items}) == len(items)`. That one line would have saved three wasted rounds.
