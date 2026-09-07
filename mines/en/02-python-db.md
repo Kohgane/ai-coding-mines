@@ -1172,6 +1172,27 @@ After recalibration the safe line was set at `2` — and the lowest legitimate s
 
 ★ And **bound the cost of being wrong with bands.** If falling below the line moves a subject one band down (a light extra check) rather than straight to a block, a slightly wrong threshold costs little. **The finer the bands, the less sensitive you are to threshold error.**
 
+**★★★ Confirmed — growing the sample from 10 to 40 pushed the minimum back down**
+The normal-population distribution, re-measured at 40 samples:
+
+```
+{1:1, 2:4, 3:5, 4:7, 5:10, 6:10, 7:3}   n=40
+min 1 · p10 2 · p20 3 · median 5 · max 7
+```
+
+In the previous round, fixing the bias raised the minimum from `1` to `2`, and the safe line was pinned there. **Grow the sample and something else takes the 1 slot.** The predicted "the eleventh could be 1" **happened exactly as stated.**
+
+★★★ **The minimum is an observation that keeps falling as the sample grows, not the floor of the distribution.** And at 40 samples that 1 is still **a single item** — so **you still cannot claim to know the floor.** The minimum is a statistic that never stabilizes, no matter how much data you add.
+
+★ **A quantile removes the wobble.** Set the line at something like `p10 − 1` — **one step below a quantile** — and it barely moves as the sample grows.
+
+**★★★ And rather than trying to get the threshold right, make being wrong cheap**
+In that distribution the recommended line is `p10 − 1 = 1`, but the line actually in use is **one step stricter, `2`.** As a result **2.5% of the normal population (one item) falls below it.**
+
+★★ That is acceptable because falling below means **a "light extra check" band, not a block.** The cost of a false positive is **bounded.** ★★★ **A bounded cost is more robust than an exact threshold** — design standing in for precision.
+
+★ **Decide which way you want to be wrong before drawing the line.** Here, **the cost of double-checking a legitimate subject < the cost of letting a malicious one through**, so the line errs strict. Without that decision, a threshold is just a number.
+
 **★★ Five checks before adding a signal**
 1. **Forgeability** — can the subject simply create it at will?
 2. **Accidental presence** — does it appear on its own via templates, third parties, placeholders?
