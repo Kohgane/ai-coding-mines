@@ -1110,3 +1110,24 @@ assert all(v is Verdict.UNKNOWN for v in run_all(offline=True))
 ```
 
 ★ Also **check which way the false positives point.** A rule that treats size as a risk signal (`too many distinct suppliers`) will flag **every legitimately large** counterparty. Look at how both tails of the normal distribution land on your rules.
+
+**★★★ And the signal itself may not be a signal — format validation is not attribution**
+
+`+1 if an email address is present`, implemented as a regex, was awarding points to these:
+
+| Address found | What it actually was |
+|---|---|
+| `back-in-stock@notifyboost.net` | injected by a **third-party app** |
+| `support@storefront.com` | a **platform template default** |
+| `example@mail.com` | a **placeholder** |
+
+★★★ **"there is an email on the page" and "this business has an email" are different propositions.** A regex only checks shape. **Whether the value you found actually belongs to the subject is a separate check** — here: the domain must match, or the address must contain the brand name.
+
+★★★ **Worse is the direction of the error.** All three appear **more often on the suspicious subjects.** The more a site was left as a stock template, the more likely the platform defaults and placeholders survive untouched. **So this rule hands bonus points to the least trustworthy subjects.** The false positives are not random — they point **backwards**.
+
+★★ **When you design a signal, also ask "how easy is this to fake?"** Anything easy to forge or accidentally inherit **must not be a positive signal.** Use it only as a penalty, or attach an attribution check before it earns credit.
+
+**★★ Set thresholds from normal samples**
+The safe line was set at `3` to fit one malicious sample scoring `-7`. A long-standing legitimate counterparty then fetched successfully and still scored `0` — "caution." Not a fetch problem; **the threshold itself was wrong.**
+
+★ **Look at the score distribution of your normal population before drawing the line.** A threshold fitted to a single bad case cuts the good ones. And you usually have exactly one failure case but **as many normal cases as you like** — calibrate from the side with enough material to see a distribution.
