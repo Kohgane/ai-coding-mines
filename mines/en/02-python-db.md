@@ -1131,3 +1131,24 @@ assert all(v is Verdict.UNKNOWN for v in run_all(offline=True))
 The safe line was set at `3` to fit one malicious sample scoring `-7`. A long-standing legitimate counterparty then fetched successfully and still scored `0` — "caution." Not a fetch problem; **the threshold itself was wrong.**
 
 ★ **Look at the score distribution of your normal population before drawing the line.** A threshold fitted to a single bad case cuts the good ones. And you usually have exactly one failure case but **as many normal cases as you like** — calibrate from the side with enough material to see a distribution.
+
+Measuring 10 legitimate subjects gave `1–7` (median 5); the one malicious sample scored `-6`. **A gap of 7.** Yet the threshold sat at `3` — **not the middle of the gap (-2.5) but well inside the normal distribution.** One legitimate subject fell below the line and another landed exactly on it.
+
+**★★★ Even so, "the gap is 7, so it's stable" is not a claim you can make — there is one malicious sample**
+Ten normal, one malicious. ★★★ **One point tells you nothing about a distribution.** The second bad actor could score `-1`. **"Calibrate from the normal side" being right does not mean you know the malicious side.**
+
+★★ **So don't force a verdict on the region you have no data for — add a band.** Put a **`borderline — human check before proceeding`** band in the empty zone between the two distributions, and the classifier commits only where it has evidence and hands off where it doesn't. Same reasoning as `UNKNOWN` above: **don't attach a grade where you have no confidence.** Recalibrate once a few malicious samples have accumulated.
+
+**★★★ The `fetched` flag belongs on the signal, not on the subject**
+Once you drop the bonus and keep only **a weak penalty for absence**, that penalty becomes **entirely dependent on `fetched` being accurate.** And real collection is not all-or-nothing — **the main page loads but the contact page fails**, so `fetched=True` while that particular signal's evidence was never seen. → **penalty.** The bug you fixed comes back in partial-failure form.
+
+★★ **Each signal must carry its own "did I actually read my evidence?"** — `fetched_email`, `fetched_address`. A single subject-level flag **rounds partial failure up to full success.**
+
+**★★ Five checks before adding a signal**
+1. **Forgeability** — can the subject simply create it at will?
+2. **Accidental presence** — does it appear on its own via templates, third parties, placeholders?
+3. **Attribution** — is there evidence the value **belongs to the subject**?
+4. **Error direction** — when it's wrong, which way is it wrong?
+5. **Meaning of absence** — does it distinguish not-seen from not-there?
+
+★ **If 1 or 2 holds, never use it as a positive.** Without 3, use it only as a penalty. ★★ **If 4 points backwards the signal is worse than nothing** — **random false positives dilute as the sample grows; backwards ones get worse.** They barely move aggregate accuracy metrics and **fail exactly where failing matters most.**
