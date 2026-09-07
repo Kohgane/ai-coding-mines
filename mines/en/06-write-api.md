@@ -537,7 +537,9 @@ There is no guarantee the platform's word and your word mean the same thing. "Va
 ★ **An error string is location information, not cause information.** It says look near here; it does not say this is the culprit.
 
 **★★★ Truncating logs at 100 characters keeps the answer off your screen**
-**The full message contained the list of duplicated IDs.** The answer was inside the response the whole time; the log format was cutting it off.
+**The full message contained the list of duplicated IDs.** The answer was inside the response the whole time; the log format was truncating at `[:110]`.
+
+★ **110 characters looks like plenty for "one line of error message."** That is why nobody questions it. But **the summary comes first and the evidence comes after** — when a platform appends the list of offending items, that list sits exactly where the cut lands.
 
 ★★ This collection already carries the rule **"treat every clause of the error text as a suspect."** We wrote it down and stepped on it again — last time by not reading past the `or`, this time because **the full text was never retained at all.**
 
@@ -554,6 +556,23 @@ In a full PUT, **the list you send is the final state.** Sending a new list with
 |---|---|---|
 | 1 | `duplicate option value` | cloning carried the identifier |
 | 2 | `cannot delete an item that is on sale` | existing items must be retained |
+| 3 | `duplicate option value` **(again)** | **both sources used the same option axis** |
+
+**★★★ The third layer — the same message, a different cause**
+The existing product's attribute axis was `color`, and the source's variant axis was **also** `color`. Appending variants produced **option values identical to the original — a duplicate again.** The code that fixed layer 1 does **nothing** for this.
+
+★★★ **The same message does not mean the same cause.** An error string you have seen once reads as "that thing again," which is exactly how you miss that **it is a new species, not a recurrence.**
+
+★★ **When you merge option axes from two sources, overlapping axis names produce a collision, not a cross product.** Code that assumes the axes are orthogonal **silently generates duplicates when they are not.** Check the intersection of axis names before merging.
+
+**★★ And at some point you have to give up — `skip:axis-collision`**
+**After three failures, record the reason and move to the next item.**
+
+★★★ **The criterion is not a retry count but "does retrying produce new information?"** A retry that changes the access path yields something new each time; **a structurally impossible case returns the same answer on attempt 30 as on attempt 1.** Two axes overlapping is not a fact that retrying changes.
+
+★ **Holding on to one item stalls the batch and makes you abandon the whole job.** The inability to drop an individual case is what prevents finishing.
+
+★ **A skip with a recorded reason is a deferral, not a loss.** Skip silently and you cannot later tell whether the item is eligible for reprocessing. Write skip reasons into the same place, in the same shape, as failure reasons.
 
 ★★ **The first error going away is not the same as being fixed.** A next layer appearing is the normal course. If no layer appears, **confirm by re-reading the resource** — which is the first sentence of this chapter.
 
