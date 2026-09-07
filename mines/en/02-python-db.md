@@ -1066,6 +1066,13 @@ Attach a `{reason: count}` aggregate at the end of the pipeline, then toggle con
 
 ★ One side benefit: the moment the reason breakdown existed, it exposed **"already processed" sitting inside the rejection reasons.** A normal state mixed into a failure distribution **blurs the real bottleneck ratios.**
 
+**★★ For the same reason, a metric with a prerequisite misleads you when read on its own**
+One stage showed `0.1%` complete. It read as "nobody is doing that work" — but that stage only applies to items that cleared **the previous stage, which stood at 44%.** The `0.1%` has a denominator of 44%, and **no amount of work on that stage can exceed 44%.**
+
+★★★ **Where a prerequisite exists, the earlier stage's rate is the later stage's ceiling.** Seeing a low number, suspect **"there is nothing eligible to work on"** before **"the work isn't happening."**
+
+★ **And hanging a target on such a metric quietly changes what the target means** — a gate like `start advertising at 80% images` is, while the ceiling sits at 44%, **effectively a gate on the earlier stage.** **Whenever you gate on a metric, write down its ceiling next to it.**
+
 ---
 
 ## In a heuristic scorer, a failed fetch scores lowest — the failure is punished twice
@@ -1143,6 +1150,27 @@ Ten normal, one malicious. ★★★ **One point tells you nothing about a distr
 Once you drop the bonus and keep only **a weak penalty for absence**, that penalty becomes **entirely dependent on `fetched` being accurate.** And real collection is not all-or-nothing — **the main page loads but the contact page fails**, so `fetched=True` while that particular signal's evidence was never seen. → **penalty.** The bug you fixed comes back in partial-failure form.
 
 ★★ **Each signal must carry its own "did I actually read my evidence?"** — `fetched_email`, `fetched_address`. A single subject-level flag **rounds partial failure up to full success.**
+
+**★★★ Removing a bias means re-deriving the thresholds — the correction shifts the scale, not the separation**
+Re-measured after splitting the flag per signal:
+
+| | Lowest normal | Malicious | Gap |
+|---|---|---|---|
+| Before | 1 | -6 | **7** |
+| After | 2 | -5 | **7** |
+
+★★★ **The gap is unchanged; both sides moved up together.** The unfair penalty applied **equally to legitimate and malicious subjects** — a failed fetch does not discriminate.
+
+★★ **So removing the false positive did not improve discrimination.** What improved is **what the score means**: it now reflects only evidence actually read. ★★★ **But the threshold was fitted to the old scale — change the scoring and leave the threshold, and the threshold quietly comes to mean something else.** Touch the score computation, **always re-derive the threshold.**
+
+**★★★ Never pin a threshold to the minimum**
+After recalibration the safe line was set at `2` — and the lowest legitimate sample was **exactly 2.** The same shape as the previous round, where the minimum landed right on the line.
+
+★★★ **The minimum is a statistic that keeps falling as the sample grows.** Ten legitimate samples bottoming out at 2 means **the eleventh could be 1**, not that **2 is the floor of normal.** Pin the line to the minimum and **it slides down every time you add data — that is an observation, not a threshold.**
+
+★ **Use a quantile instead.** Find the 10th–20th percentile of the normal population and leave headroom below it.
+
+★ And **bound the cost of being wrong with bands.** If falling below the line moves a subject one band down (a light extra check) rather than straight to a block, a slightly wrong threshold costs little. **The finer the bands, the less sensitive you are to threshold error.**
 
 **★★ Five checks before adding a signal**
 1. **Forgeability** — can the subject simply create it at will?
