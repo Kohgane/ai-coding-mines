@@ -1065,3 +1065,48 @@ Because the rates multiply, **turning off a single condition moves the result by
 Attach a `{reason: count}` aggregate at the end of the pipeline, then toggle conditions **one at a time** and record the pass count. If the model is right, each condition you disable multiplies the output rather than adding to it.
 
 ★ One side benefit: the moment the reason breakdown existed, it exposed **"already processed" sitting inside the rejection reasons.** A normal state mixed into a failure distribution **blurs the real bottleneck ratios.**
+
+---
+
+## In a heuristic scorer, a failed fetch scores lowest — the failure is punished twice
+
+**Symptom**
+A scorer read pages and rated trustworthiness. Positive signals `+1`, risk signals `-2`. On a run, **three long-standing, entirely legitimate counterparties came back at `-4` — the highest risk band.**
+
+**Cause**
+Rate limiting meant **the pages were never read at all.** Yet the score landed at the negative floor rather than at zero. The asymmetry in the rules is why.
+
+| | On a failed fetch |
+|---|---|
+| Positive rule (`has an email address`, `+1`) | unconfirmed → **0, neutral** |
+| Risk rule (`has no email address`, `-2`) | **"absent" holds, so it fires** → **penalty** |
+
+★★★ **Positive rules key off presence; risk rules key off absence.** So **one failed fetch forfeits the credit and triggers the penalty at the same time.** The single fact "we could not check the email" **loses +1 and takes -2 — a three-point swing.** With several signals it compounds.
+
+★★★ **An event that should be neutral acts as a conviction.** And it fails in the most plausible-looking direction — a top-risk verdict looks like the scorer **did its job**, not like it **never read anything**.
+
+**Fix**
+**Carry a `fetched` flag and separate "could not check" from "not present."**
+
+★ **When `fetched` is false, do not evaluate the penalty rules at all.** Not a zeroed score, not a neutral value — **withhold the verdict** and give it a **fourth outcome**: `UNKNOWN`. With only safe/caution/risk available, failure must leak into one of the three.
+
+```python
+if not fetched:
+    return Verdict.UNKNOWN      # not a zero score. not a grade.
+```
+
+★ And **remove the cause too** — here, spacing the requests. Fixing the scorer and fixing the collector are separate jobs, and **you need both.**
+
+**★★★ This was the third repeat**
+Two others are already in this collection — **a failed fetch read as "out of stock"**, and **a blocked search read as "zero results."** Here a block was read as **"dangerous."**
+
+★★★ **That is not coincidence. Scorers are usually built to look for evidence of normality — so failing to obtain evidence produces a negative verdict automatically.** Every time you write a new classifier, ask one question: **"what does this return when the input could not be read?"** Most classifiers never define that path, and an undefined path **falls to the worst grade.**
+
+**How to verify**
+★★ **Run the scorer with the network cut.** Every item should come back `UNKNOWN`. If even one comes back graded, that rule is penalizing absence. A single assertion catches it.
+
+```python
+assert all(v is Verdict.UNKNOWN for v in run_all(offline=True))
+```
+
+★ Also **check which way the false positives point.** A rule that treats size as a risk signal (`too many distinct suppliers`) will flag **every legitimately large** counterparty. Look at how both tails of the normal distribution land on your rules.
