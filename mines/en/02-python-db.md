@@ -73,6 +73,42 @@ The same query ran twice. Round one: only one locale succeeded (1.1MB). Round tw
 
 ★ **ID length, charset, and query window are all facts about the other side.** An assumption baked into your code shows up as 0 rows or a dead run the moment they change — and 0 rows looks like normal.
 
+**★★★ Interpreting a zero requires a control — and once writes are attached, give the verdict a third value**
+A shipping-quote API returned **zero options** for one country. Read as "we can't ship there," it triggered **a routing change on 60 records.** Wrong — that store **computes shipping at checkout**, so this API returns **zero for every country you ask about.**
+
+★★★ **Making the same call once more with a different input separates the two cases.**
+
+| Observation | Meaning |
+|---|---|
+| zero for the target country, **others return options** | **genuinely unavailable** |
+| **zero for every country** | **this store doesn't use this API → undecidable** |
+
+★★★ **To interpret a zero you need an input you expect to be non-zero.** That is the control. Without one, **"my query is wrong" and "they don't use that feature" both look like `0`.**
+
+**★★★ So the verdict has three values, not two**
+
+```python
+True   # confirmed (or there is a past record of it) → use the measured value
+False  # the control responded and only this target is zero → genuinely unavailable
+None   # the control was also all zeros → undecidable
+```
+
+★★★ **And `None` does not mean "defer," it means "do not write."** Leave the existing value exactly as it is and **do nothing.** In another classifier in this collection, `UNKNOWN` meant **retry** — but that was a read, and this is **a position that can overwrite existing data.**
+
+★★ **A write-side abstention must be stronger than a read-side one. Not "don't read when you don't know" but "don't change when you don't know."**
+
+★★★ This collection already holds three cases of **reading "not found" as "not there"** — a failed fetch as out-of-stock, a blocked search as zero results, a rate limit as high risk. **Those three stopped at a wrong verdict; this one changed the data.** ★ **Build the `None` path before you attach writes to a classifier.** The same bug costs something entirely different once a write hangs off it.
+
+**★★ A record of actual outcomes beats any static check — don't add it to the score, intercept ahead of it**
+That store had **an actual delivery record to that country.** The fix was to check the tracking history first and **skip the API verdict when it exists.**
+
+★★★ **Ordering is the whole point.** The same signal was being used in an earlier scorer as **one `+1` line item** — and **adding your strongest evidence in the same unit as your weakest dissolves the strength.** The proof: in that scorer, **the highest-scoring subject turned out to be one we cannot actually transact with.**
+
+★ **Static checks accumulate "probably"; a record states "it happened."** When you have the latter, there is no reason to consult the former — make it an **override**, not a line item.
+
+**★★ Aside — two stores call the same entity by different names**
+The order history used **brand names** (including local-language forms); the catalog used **domains.** **String matching will never connect them.** Keep an alias table as the source of truth and use first-word name matching **only as a fallback** — ★ invert that order and you reproduce this collection's **three consecutive mismatches from matching on names.**
+
 **It was collected, and the aggregate still says "absent"**
 Collect a catalog but never add it to the brand mapping table, and the aggregate reports "no catalog". The top 25 brands all showed ✘ when several were already sitting in the catalog. **Collection and mapping are separate jobs.** Registering in the mapping table right after collecting is part of collecting.
 
