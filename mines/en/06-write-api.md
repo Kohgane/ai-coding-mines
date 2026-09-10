@@ -578,3 +578,54 @@ The existing product's attribute axis was `color`, and the source's variant axis
 
 **How to verify**
 ★ **One layer at a time, changing one hypothesis per retry.** Fix three places at once and you will not know which one peeled the layer. And assert identifier uniqueness on the payload right before sending: `len({x.id for x in items}) == len(items)`. That one line would have saved three wasted rounds.
+
+---
+
+## We read our own default as a platform constraint, and excluded a whole product class
+
+**Symptom**
+An entire class of products — crowdfunded items — was **excluded from the sourcing policy outright.** The reasoning looked solid: **"we structurally cannot meet the 7-day dispatch deadline."** For goods shipping in one to three months, obviously true. That call kept **41 suspected items across 11 domains** and **one entire retailer** out of the catalog.
+
+**Cause**
+**7 days was not the platform's limit.** It was a number sitting in our own registration pipeline's canonical-values table:
+
+```
+| dispatch_deadline_days | 7 |
+```
+
+**A per-product value we send.** Raising it to 20 was the whole fix. **Not "structurally impossible" — just "a field we never changed."**
+
+★★★ **Defaults look like constraints.** Once a value is a constant in the code, people read it every day and **never re-ask "is this something we can change?"** If anything, its being tidily listed in a canonical-values table lends it **the air of a fixed specification.**
+
+★★★ **When a policy rests on an impossibility, check where the impossibility comes from — the platform's documentation, or your own code.** If it's the latter, it is not a constraint; it is **a choice you made.** Same shape as **don't read a 404 as "the feature doesn't exist"** elsewhere in this collection: **we read what we hadn't looked for as what wasn't there.**
+
+**Fix**
+The detection logic stayed; only **what happens after detection** changed — from exclusion to **inserting a shipping notice and raising the dispatch window.** The policy's skeleton was fine; **one branch pointed the wrong way.**
+
+★ **The honest remaining limit:** 20 is also a number we picked. **An item shipping in three months misses 20 days too.** Detection alone is not enough — **read the actual estimated ship date and set the field from it.** Where that isn't possible, **explicit notice in the title and description** is the real defense.
+
+**How to verify**
+★★ **Demand a citation for every "impossible" in a policy document.** An impossibility claim with no platform-doc URL should be **suspected of being a constant in your own code.** Grepping the codebase for that number takes a minute — we didn't, and excluded a product class for **over ten days.**
+
+---
+
+## Break the all-or-nothing — a reduced registration beats a failure, but record what you dropped
+
+**Symptom**
+Products with a two-axis option structure (`color × plug type`) kept being rejected. The platform's option model **cannot express that shape.** It isn't a conversion, it's **a loss**, so there was nothing to fix.
+
+**Fix**
+On failure, **retry with only the representative option** (`items[:1]`). **Measured: 5 failures → 0.**
+
+★★ An earlier entry handled the same situation as **"after three failures, record the reason and skip."** There was a better move — **skipping yields 0 records, reducing yields 1.** ★ **Before settling for failure, look for whether an intermediate outcome exists between "failed" and "fully succeeded."**
+
+**⚠️ ★★★ But a reducing fallback discards information, and the loss lands on the user**
+The representative option was named `default`. **That name tells a buyer nothing.** Register a two-axis product as one item and **the customer does not know what they are getting** — a wrong plug type is a return.
+
+★★★ **Technical success is not product success.** "5 successful registrations" is perfect on the dashboard and is in fact **5 items with undisclosed specifications.**
+
+★ **So a fallback needs two things attached.**
+1. **Restore the dropped information somewhere a human reads** — state the representative option's actual specs in the title and description
+2. **Mark the fallback records** — `fallback:single_option`. **Counting them only as "success" severs the trail**
+
+★★ **Never fold a lossy fallback straight into the success counter.** Without a separate tally you lose any way to know **when to put it right** — if the platform later supports multiple axes, **you won't know which records to fix.**

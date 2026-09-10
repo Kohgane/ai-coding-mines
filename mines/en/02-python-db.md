@@ -392,6 +392,18 @@ Truncation length differs per system:
 
 Knowing "it gets truncated" is not enough. **The cut-off length defines the collision set.** The same data cut at different points per channel collides differently on each.
 
+**★★★ And the remedy is not to shorten but to reorder**
+Option names truncated at 25 characters left **every option with the same name.**
+
+```
+"Standard (Single Passport) / Green"   ← first 25 chars identical
+"Green / Standard"                    ← the distinguishing part moved up front
+```
+
+★★★ **Truncation always discards the tail. So put what distinguishes up front.** Before shortening the string or appending a hash, **look at the order** — reordering alone keeps **a name a human can still read.**
+
+★ And the common convention points **exactly the wrong way.** Naming that leads with a shared prefix (spec name, brand, category) **reads well and truncates worst.** **Don't use the same naming scheme for fields cut at the front and fields cut at the back.**
+
 **Key expansion must be applied at every lookup site**
 Put the suffix/prefix expansion into five of six batches and the sixth **stays unmatched forever, on its own.** "The fix is decided" and "the fix is in every call site" are different facts. `grep` every call to the lookup and count them before calling it done.
 
