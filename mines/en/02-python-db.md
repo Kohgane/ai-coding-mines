@@ -122,6 +122,28 @@ That classifier kept its blocklist — counterparties that had already caused re
 
 ★★ **An override is evidence of safety, not authority to lift a block.** ★★★ **A skip that doesn't say what it skips will skip the blocks too.**
 
+**⚠️ ★★★ And encoding precedence as sentinel values makes them cancel**
+The natural implementation gives a block `-99` and an override `+99`. It looks clean, and **in an additive scorer it breaks.**
+
+```
+-99 + 99 = 0
+```
+
+★★★ **Zero is a middle band.** Out comes a value that is neither blocked nor confirmed. And that combination is not hypothetical — **"on the blocklist AND has a prior transaction record"** is exactly it, and **anyone you blocklisted after dealing with them once satisfies both conditions, always.** **The most dangerous combination draws the most ambiguous score.**
+
+→ ★★★ **Precedence cannot be expressed as a value. Express it as an early return.**
+
+```python
+if blocked(x):    return Verdict.BLOCKED      # return immediately
+if prohibited(x): return Verdict.PROHIBITED   # return immediately
+if has_record(x): return Verdict.CONFIRMED    # return immediately
+return static_score(x)
+```
+
+★★ **A sentinel value rests on the promise that "this number never gets added to the others."** In an additive scorer that promise breaks **the moment someone adds one `+=` line** — and that someone does not know about the sentinel.
+
+★ If it must be a value, **multiply rather than add.** `0` times anything is `0`, and it does not cancel. ★ Better still, **keep grades and scores in different types** — a `Verdict` for blocks, an `int` for confidence. **Put them on the same axis and sooner or later they get summed.**
+
 **⚠️ ★★ And a track record is a fact about the past, not a guarantee about the present**
 ★ **Don't let a success from a year ago vouch for today.** Weigh the record's **recency**, and demote stale ones from override back to **line item.**
 
