@@ -900,6 +900,47 @@ After conversion, check that the cost/price ratio falls in a sane range **per st
 
 ★ **Before any irreversible bulk conversion, decide which hypothesis is true.** A value being present does not mean its unit is right.
 
+**★★★ The same assumption has to be broken separately at every endpoint**
+Six days later we **hit the identical trap on the cart-quote endpoint.** The catalog `price` had been fixed, but **the shipping-quote response was also in the store's display currency.** A Taiwanese store returned `378`; read as-is that is `$378`, and the real figure was **$11.72**.
+
+★★★ **A fix in one place does not carry to the others.** "The store is in USD" has to be **un-assumed at every point that reads an amount.** → **`grep` every call site that receives a monetary value and add the currency check to each.** "The fix is decided" and "the fix is in every call site" are different facts.
+
+★★ **And unit errors are caught by magnitude, not meaning.** Which currency `378` is cannot be told from the value — but **"$378 international shipping" is impossible** and you do know that. **Put a sanity ceiling on every path where a conversion happens, and treat anything above it as a misread unit.**
+
+---
+
+## A bad bulk conversion cannot be undone by inverting it — re-fetch from the source of truth
+
+**Symptom**
+Records wrongly divided by 100 were logged as "restored." Six days later, **103 records from a different store were still holding the wrong values.**
+
+**Cause**
+The restore covered **the store where the problem was first spotted**, not **the full range the bad conversion had touched.** ★★★ **If you don't know the scope a bulk conversion was applied to, you don't know the scope of the repair either.**
+
+**★★★ And multiplying by 100 does not undo it**
+It looks reversible. It isn't.
+
+1. ★ **There is no record of which rows were converted** — you cannot target an inverse you cannot scope
+2. ★ **Partial application** — only some rows were converted. Multiplying all of them **breaks the healthy ones** (the same mistake, again)
+3. ★ **Other updates landed in between** — re-fetches and recalculations mean today's value is not the post-conversion value
+4. ★ **Rounding loss** — divide then multiply and you do not get the original back
+
+**Fix**
+**Re-fetch everything from the source of truth, not from a backup.**
+
+```python
+row["twd"] = live[handle]      # rewrite, don't invert
+```
+
+★★ **When the source of truth lives in an external system, that is your best backup.** Your own backups mix timestamps; **the upstream API is the correct answer as of right now.** Don't repair the local copy — **discard it and re-pull.**
+
+**★ Rules for bulk conversion**
+1. **Write the target list to a file first.** It is your only means of repair
+2. **Keep the pre-conversion value in a sibling field** (`twd_raw`) — more reliable than an inverse
+3. ★★ **Verify "restored" by re-reading every record.** Count whether **the same mistake reached other targets** too
+
+★★★ **A write we believed was reversible turned out not to be.** The judgment "this is recoverable" rested on **assuming we knew the blast radius** — and that assumption was wrong.
+
 ---
 
 ## `text-align: right` shows in getComputedStyle but the buttons don't move

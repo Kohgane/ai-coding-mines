@@ -607,6 +607,29 @@ The detection logic stayed; only **what happens after detection** changed — fr
 **How to verify**
 ★★ **Demand a citation for every "impossible" in a policy document.** An impossibility claim with no platform-doc URL should be **suspected of being a constant in your own code.** Grepping the codebase for that number takes a minute — we didn't, and excluded a product class for **over ten days.**
 
+**★★★ A second instance turned up the same day — this time an estimate**
+Another clause in the same policy document excluded an entire price band because **"fixed shipping costs make low-priced items structurally unprofitable."** Measured, shipping came in at **$0, $4, $11, and $32 depending on the supplier.** **Where shipping is free, that price band is wide open.**
+
+| | The number it rested on | What it actually was |
+|---|---|---|
+| Clause A | dispatch deadline of **7 days** | a default in our code |
+| Clause B | **a fixed ~$20** shipping cost | an estimate of ours |
+
+★★★ **Both excluded a product class on the words "structurally impossible," and both numbers were ours.** Neither had ever been measured.
+
+★★★ **Once an estimate becomes the basis of a policy, the label "estimate" falls off.** Only the number survives, and **being written in a policy document lends it authority.** A constant in code can at least be grepped; **an estimate dissolved into prose in a document cannot even be found.**
+
+**★★ The fix — attach a release condition to every estimate**
+One note in the same system **did this correctly.** Using the same estimated shipping cost, it said:
+
+> "This shipping cost is **an assumption**, to be recalculated **once real shipping-rate data exists.**"
+
+★★★ **Only the note that wrote down the condition could recognize the condition being met.** The day measured data appeared, that item became releasable immediately — while the others still sat there **asserted as fact.**
+
+★ **Rule: when an estimate goes into a document, three things go with it** — ① **that it is an estimate**, ② **its provenance** (where the number came from), ③ **its release condition** (what has to exist before you recompute). Miss any one and **the number becomes a fact before long.**
+
+★ And **a broken premise does not invalidate the whole argument.** "Where fixed costs are large, repricing cannot rescue the low band" still holds. What was wrong was **one premise: that every supplier is like that.** Don't throw out the policy — **turn the global condition into a per-case one.**
+
 ---
 
 ## Break the all-or-nothing — a reduced registration beats a failure, but record what you dropped
