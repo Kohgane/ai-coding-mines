@@ -106,6 +106,39 @@ That store had **an actual delivery record to that country.** The fix was to che
 
 ★ **Static checks accumulate "probably"; a record states "it happened."** When you have the latter, there is no reason to consult the former — make it an **override**, not a line item.
 
+**⚠️ ★★★ But an override must not outrank a blocklist**
+That classifier kept its blocklist — counterparties that had already caused real losses — as **one of the penalty rules.** If the override "skips the static checks," it **skips the blocklist too.**
+
+★★★ **A counterparty that transacted normally once and then turned fraudulent sails straight through.** The real loss case was "paid, never shipped" — and **if even one order had shipped normally before that, it would score as maximally trustworthy today.**
+
+→ **Pin the precedence explicitly.**
+
+```
+① blocklist          — reject unconditionally
+② prohibitions on a separate axis — score-independent (rights issues, etc.)
+③ track-record override — only here do you skip
+④ static score
+```
+
+★★ **An override is evidence of safety, not authority to lift a block.** ★★★ **A skip that doesn't say what it skips will skip the blocks too.**
+
+**⚠️ ★★ And a track record is a fact about the past, not a guarantee about the present**
+★ **Don't let a success from a year ago vouch for today.** Weigh the record's **recency**, and demote stale ones from override back to **line item.**
+
+★ Implementing the override as **a large value inside the scoring system** (a 99 that dwarfs the threshold) is a good choice — it clears the threshold decisively while **still coming down if a penalty lands on it.** Putting ① and ② ahead of it makes that design safe.
+
+**★★★ One more — a new classifier loses facts you paid dearly for**
+The `None` (undecidable) list contained **a target already settled in the past.** For that one we had established that **"the policy claims availability but the country is absent from the actual list"**, after registering 32 items and pulling all of them. That expensive fact came back as **"unknown"** in the new classifier.
+
+★★★ **`None` must mean "not looked at yet," never "looked at before and forgotten."** Since `None` means keep-existing-value there's no immediate damage, but **storing that `None` buries the earlier finding.**
+
+★★ **Put manually confirmed values above the classifier** — one `manual_verdict` field. However sophisticated automatic scoring gets, **it cannot outrank a fact a human established by experiment.** Whenever you write a new classifier, first ask **where the previous conclusions were kept.**
+
+**★★ And aligning keys comes before matching**
+The name/domain mismatch above happens **because each store picked the key that was right in its own context** — a human-read log uses brand names, a machine-scraped catalog uses domains. **Both are correct choices; the problem appears only when you join them.**
+
+★★★ **An alias table is a remediation for past data, not a solution for future data.** Add a **shared key field on the writing side and populate it at write time.** Otherwise **match accuracy becomes permanent debt.**
+
 **★★ Aside — two stores call the same entity by different names**
 The order history used **brand names** (including local-language forms); the catalog used **domains.** **String matching will never connect them.** Keep an alias table as the source of truth and use first-word name matching **only as a fallback** — ★ invert that order and you reproduce this collection's **three consecutive mismatches from matching on names.**
 
