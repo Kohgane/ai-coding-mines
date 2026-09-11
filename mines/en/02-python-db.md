@@ -1424,6 +1424,22 @@ Once you split the observation path, **one subject carries two values** — `BLO
 
 ★ Generalized: **"not needed for the verdict, so don't compute it" and "not needed for the verdict, so don't record it" are different statements.** A value irrelevant to the verdict may be exactly what training, auditing, or debugging needs.
 
+★ The same shape is everywhere — **a benchmark run with non-default settings, a response time measured with the cache cleared, a row count collected with the rate limit lifted.** Omit the conditions and **an incomparable number takes the canonical slot.**
+
+**⚠️ ★★ And a field name must not contradict the population**
+The baseline recorded `"population": "full p10 (n=121)"` alongside `"normal_low": 2`. **That `2` is the `p10`, not the minimum** — the full minimum is `1`.
+
+★★★ **The description string says `p10`; the field name reads as `low`.** **Humans read the string; code reads the field name.** When they disagree, **the code wins, and it wins quietly.** → `normal_p10`. **Put the population in the name, not in the prose.**
+
+**⚠️ ★★★ "Comparison deferred" becomes the way the test gets switched off**
+Once the baseline records a population, a natural rule follows — **"if the population differs, defer the comparison and don't count it as a failure."** The rule is right. It is the same reasoning as `UNKNOWN` above, and **regression tests get a third value too: pass / fail / incomparable.**
+
+★★★ **But if "deferred" quietly tallies as a pass, the regression test is neutralized.** Change the population once and **the test stays "deferred" forever, raising nothing the entire time.** **The easiest way to disable the test becomes "adjust the population definition slightly"** — and it happens without any intent to do so.
+
+★★ **Report deferrals in a different color from passes, and after N consecutive deferrals (say 3) escalate to a failure and alert.** ★ When deferring, also print **what has to match for comparison to resume** — without that, deferrals are simply left alone.
+
+★★★ **A safeguard creates the path by which it switches itself off.** Another entry in this collection's **a fix creates the next trap** family — except this time **the trap points at the safeguard itself.**
+
 **★★ Five checks before adding a signal**
 1. **Forgeability** — can the subject simply create it at will?
 2. **Accidental presence** — does it appear on its own via templates, third parties, placeholders?
