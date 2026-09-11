@@ -1373,6 +1373,33 @@ All 121 are **normal samples.** There is still exactly **one** malicious sample,
 
 ★★ **Detection-power samples only appear when something goes wrong — miss the moment and it is gone for good.** → **Every time something goes on the blocklist, persist its score and raw signals as of that moment.** You cannot reconstruct them later: **the subject is already gone or changed.** Until a few malicious samples accumulate, the margin on the safe side of your threshold is **hope, not a validated number.**
 
+**⚠️ ★★★ But the early return you just added makes that recording impossible**
+Blocks now return early at the top, so **for anything on the blocklist the signals below are never computed at all.** The observations you most need are **structurally absent** for exactly the subjects you need them from.
+
+★★★ **An early return preserves the verdict at the cost of the observation.** Another instance of this collection's **a fix creates the next trap** pattern — the move that fixed the precedence bug immediately blocked the data collection.
+
+★ **Blocks still belong at the top. What has to change is when you record.** **Immediately before adding something to the blocklist, compute the full signal set once with the block suspended, and store it.** Early return on the verdict path; **full computation on the observation path** — keep the two separate.
+
+**★★★ And the moment the first malicious sample existed, what looked perfect fell apart**
+Recorded, that one case scored **`-3`.** The blocking band is below `-4`. **The only known malicious case does not classify as high risk.**
+
+Tracing back, that value had been climbing all along.
+
+| Point | Malicious sample | Lowest normal | Gap |
+|---|---|---|---|
+| Initial | **-7** | 1 | 8 |
+| After removing the fake positive signal | -6 | | |
+| After splitting the flag per signal | **-5** | 2 | **7** |
+| **Now** | **-3** | 1 | **4** |
+
+★★★ **Every correction that reduced false positives also raised the malicious score.** Removing an unfair penalty stops it from unfairly docking legitimate subjects — **and stops it from rightly docking malicious ones too.** Earlier this chapter said "a correction shifts the scale, not the separation"; **this time the separation itself shrank — from 7 to 4.**
+
+★★★ **None of this is visible from normal samples alone.** "Zero high-risk" across a full sweep looked flawless, and **one malicious sample exposed it instantly.**
+
+★★ **So keep a regression test — every time you touch the scoring logic, re-score the known malicious samples and fail the build if any score went up.** As it stands, **the side effect surfaced weeks later.** A single malicious fixture in the test suite would have caught it on the spot.
+
+★ **And the fix is not the threshold.** Lowering it raises false positives — **the shrinking separation originates in the risk signals.** Stop the separation trend before re-deriving any threshold.
+
 **★★ Five checks before adding a signal**
 1. **Forgeability** — can the subject simply create it at will?
 2. **Accidental presence** — does it appear on its own via templates, third parties, placeholders?
