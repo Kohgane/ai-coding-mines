@@ -284,3 +284,49 @@ Measured for real: **that re-query never existed.** Zero queries anywhere in the
 For every number in the claim, answer "which code path computes this value?" If the answer is "a comment," treat it as unsupported and measure again.
 
 ★ **Before building a track on a number, find the code that produces it.**
+
+---
+
+## Two sessions took turns "fixing" the same setting and oscillated it
+
+**Symptom**
+A scheduler setting moved **from 120 runs/hour to 88 and back to 120 within a day.** Nobody reverted anything. **Two sessions each reported having "cleaned it up."**
+
+**Cause**
+Sessions cannot see each other. Each **read the current state, improved it by its own criterion, and saved.** One was optimizing **throughput**; the other was optimizing **load**.
+
+★★★ **Both were right by their own measure.** Two optimizers with different objectives sharing one variable **do not converge — they oscillate.**
+
+★★★ **And oscillation does not look like a failure.** Every individual value is **exactly what someone intended**, and the logs only ever say "adjusted." **The only way it surfaces is plotting the value over time.**
+
+**★★★ Most shared resources do not detect conflicts**
+Work with git long enough and you start expecting that **concurrent edits collide.** That is git being unusual.
+
+| | Concurrent edit |
+|---|---|
+| A git repo | **rejected, rebase required** |
+| Scheduler config, config files, DB rows, an external console | ★ **last-write-wins. Silently overwritten** |
+
+★★ **Where there is no detection, convention is the only defense.**
+
+**Fix**
+1. **Read the current value before changing it.** Base the change on **what you just read, not what you remember**
+2. Keep a **shared state file** of constraints, canonical values, and hands-off items, and **read it at session start**
+3. Maintain a **"do not touch" list** — if an item is on it, leave it alone **regardless of your judgment**
+
+★ **"I set it to 88 last time" is not evidence.** Another session may have run since.
+
+**⚠️ ★★★ That shared state file is not authoritative either**
+A snapshot regenerated on a schedule (say, every two hours) is **stale by up to that interval.** Changes inside the window are invisible.
+
+★★★ **Treat the snapshot as the source of truth and you reproduce "I read it, I changed it, and it still oscillated."** → **The shared file tells you what to be careful about; the current value gets read from the live resource immediately before you change it.** Put both jobs in one file and **the stale number takes the canonical slot.**
+
+★ **Stamp the generation time at the top and make readers check the age.** An undated snapshot **always reads as current.**
+
+**⚠️ ★★ And a convention only works if it is followed**
+"Read this at session start" is **behavior outside the code.** Skip it and nothing happens.
+
+★★★ **Making it impossible to change without reading is easier than getting people to read.** → Wrap the mutation path in a script that **prints the current value and the snapshot's age first.** Turn the convention into a procedure and you no longer have to verify it was honored.
+
+**How to verify**
+★ **Keep a time series of the values you change.** Oscillation is **invisible in any single reading and obvious in the trend.** A value bouncing between two points is not tuning — **it is two parties fighting.**
