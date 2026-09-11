@@ -144,6 +144,21 @@ return static_score(x)
 
 ★ If it must be a value, **multiply rather than add.** `0` times anything is `0`, and it does not cancel. ★ Better still, **keep grades and scores in different types** — a `Verdict` for blocks, an `int` for confidence. **Put them on the same axis and sooner or later they get summed.**
 
+**⚠️ ★★★ Splitting the types breaks every call site — and that is the point**
+The moment `score` can be `None`, a comparison like `score < THRESHOLD` raises **`TypeError`.** Every call site has to be fixed.
+
+★★★ **Breaking is the deliverable here.** What previously **returned a quiet `0` and drifted into the middle band** now **surfaces as a crash.** A loud failure beats a silent one — the exact inverse of what this chapter's opening entry describes.
+
+⚠️ ★★★ **But `score or 0` resurrects the cancellation bug intact.** Folding `None` into `0` turns **a block back into the middle band** — the very value you just fixed. It is especially dangerous because it is **the first thing anyone reaches for** when trying to make a `TypeError` go away.
+
+```python
+verdict, score = check(x)
+if score is None:      # do not fill in a default
+    return verdict     # the grade IS the conclusion
+```
+
+★ **An `or` default swallows `0`, `""` and `[]` along with it.** Test verdicts with `is None`. ★★ **Silencing a crash and fixing its cause are different jobs** — and here the former exactly undoes the latter.
+
 **⚠️ ★★ And a track record is a fact about the past, not a guarantee about the present**
 ★ **Don't let a success from a year ago vouch for today.** Weigh the record's **recency**, and demote stale ones from override back to **line item.**
 
@@ -1336,6 +1351,27 @@ In that distribution the recommended line is `p10 − 1 = 1`, but the line actua
 ★★ That is acceptable because falling below means **a "light extra check" band, not a block.** The cost of a false positive is **bounded.** ★★★ **A bounded cost is more robust than an exact threshold** — design standing in for precision.
 
 ★ **Decide which way you want to be wrong before drawing the line.** Here, **the cost of double-checking a legitimate subject < the cost of letting a malicious one through**, so the line errs strict. Without that decision, a threshold is just a number.
+
+**★★★ Follow-up measurement — tripling the sample left the quantiles unchanged**
+A full sweep took the normal population from **40 to 121**.
+
+| | n=40 | **n=121** |
+|---|---|---|
+| min | 1 | **1** |
+| p10 | 2 | **2** |
+| median | 5 | **5** |
+| max | 7 | **7** |
+
+★★★ **All four statistics held. The quantile-based choice is now empirically justified.** The line pinned to `p10` did not move across a 3× sample — **in contrast to pinning it to the minimum, which shifted every round.**
+
+★★ **Read the stable minimum carefully.** It fell from `10→40` and held from `40→121`. That is **weak evidence that 1 is near the true floor**, not evidence that **the minimum is a stable statistic.** The strong evidence is **the median holding across 3× the data.**
+
+**⚠️ ★★★ But "zero flagged as high risk" is not evidence of detection power**
+All 121 are **normal samples.** There is still exactly **one** malicious sample, and it sits on the blocklist, so it never reaches the classifier.
+
+★★★ **Growing only the normal side confirms "it doesn't cut the good ones." It confirms nothing about "it catches the bad ones."** False positives were validated against 121 cases; **false negatives were validated against zero.**
+
+★★ **Detection-power samples only appear when something goes wrong — miss the moment and it is gone for good.** → **Every time something goes on the blocklist, persist its score and raw signals as of that moment.** You cannot reconstruct them later: **the subject is already gone or changed.** Until a few malicious samples accumulate, the margin on the safe side of your threshold is **hope, not a validated number.**
 
 **★★ Five checks before adding a signal**
 1. **Forgeability** — can the subject simply create it at will?
