@@ -328,5 +328,38 @@ A snapshot regenerated on a schedule (say, every two hours) is **stale by up to 
 
 ★★★ **Making it impossible to change without reading is easier than getting people to read.** → Wrap the mutation path in a script that **prints the current value and the snapshot's age first.** Turn the convention into a procedure and you no longer have to verify it was honored.
 
+**⚠️ ★★★ Follow-up — the "do not touch" list was broken the same day**
+Point 3 above (keep a hands-off list) was written, and within a day we measured it. **Five of the six protected entries had been changed by another session.**
+
+★★★ **What matters more is that every change went the same direction.** All five had their intervals lengthened (slowed) — because the other session was **cutting toward a numeric "runs per hour" ceiling.**
+
+★★★ **The objective lived in the code as a number; the protection list lived in a document as a sentence. The number wins.** Unless the protection list is **an input to the reduction logic**, the list **might as well not exist.**
+
+**★★★ And cutting by frequency can be inversely correlated with importance**
+The two cut hardest were **the notification loop** and **the runaway-prevention guard.** **Both ran frequently because they had a reason to.**
+
+★★★ **Frequency measures cost, not importance — and a reduction pass only looks at cost.** → **Rank cut candidates by `frequency ÷ importance`, not frequency.**
+
+★★★ **Safeguards get cut first, specifically.** A safeguard **looks like cost**, and the incidents it prevented **never happened, so they don't look like benefit.** This is one step beyond this collection's **a safeguard creates the next trap** family — **this time the safeguard switched itself off.**
+
+**★★★ The ladder of defenses — each rung needs less cooperation than the last**
+
+| Rung | Requires | Result |
+|---|---|---|
+| Write it in a document | the other party **reads it** | ❌ **5 of 6 violated** |
+| Enforce via a gateway | the other party **uses the gateway** | bypassable |
+| **Auto-restore** | ★ **nothing at all** | reliable |
+
+★★★ **Making it impossible to change without reading beats getting them to read — and restoring it when it changes beats both.**
+
+**⚠️ ★★★ Auto-restore has three traps of its own**
+1. ★★★ **Is the restorer in its own protection list?** If not, **changing that one line disables the entire defense.** A self-healing mechanism **must protect itself first**
+2. ★★ **The restore interval is the violation exposure window.** Hourly restore means **the notification loop runs at the wrong interval for up to an hour.** Different entries have different urgency, so **intervals should differ too**
+3. ★★★ **Restoring doesn't end the oscillation — it just picks a winner.** The other party had a reason for cutting, and **if restore and reduction fight every hour, that is still oscillation** — merely with a one-hour period. **It ends only when the protection list becomes an input to their logic**
+
+★ And **check who receives the restore alert.** If it only reaches a human, **the session that caused it never sees it.** Write it to the shared state file too, so the next session reads it.
+
 **How to verify**
 ★ **Keep a time series of the values you change.** Oscillation is **invisible in any single reading and obvious in the trend.** A value bouncing between two points is not tuning — **it is two parties fighting.**
+
+★★ **And periodically measure whether the protection list is actually being honored.** Creating a list and having it work are different facts — **we found out only after 5 of 6 had been broken.**
