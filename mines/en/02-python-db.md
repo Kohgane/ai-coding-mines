@@ -1400,6 +1400,30 @@ Tracing back, that value had been climbing all along.
 
 ★ **And the fix is not the threshold.** Lowering it raises false positives — **the shrinking separation originates in the risk signals.** Stop the separation trend before re-deriving any threshold.
 
+**★★★ A regression baseline must store the population, not just the number**
+The baseline file recorded `separation: 5`, and the problem appeared immediately. **That 5 is against a 5-item control group**; **against the full population it is 4** — the control group's minimum is `2`, the full population's is `1`.
+
+★★★ **Store only the number and the comparison breaks the moment the control group changes — with no way to notice it broke.** A regression test asks **"is this worse than last time?"**, and if you don't know what last time measured, **the question doesn't parse.** → Record **the value, the population definition, and the measurement time** together.
+
+**⚠️ ★★★ And a frozen control group invites overfitting**
+If the control group **omits the bottom of the distribution, separation is overstated.** "Nothing got docked" passes far too easily.
+
+★★★ Worse, **a frozen control group eventually gets tuned against.** **The moment the test becomes the target, it stops being a test.**
+
+★ **Compute separation from a quantile of the full distribution, not the control group's minimum.** As shown above, **quantiles didn't move across a 3× sample** — exactly the property a baseline needs. Keep the small control group as a **fast check**, and make the **pass/fail call against the full distribution.**
+
+**★★★ A value obtained under special conditions is only a value if the conditions are stored with it**
+Once you split the observation path, **one subject carries two values** — `BLOCKED` from the verdict path, `-3 (middle band)` from the observation path. The discrepancy is intentional, but **once stored, nothing says which one is "the" value.** Months later, `-3` reads as **"this was mid-band, so why was it blocked?"**
+
+```json
+{"score": -3, "band": "borderline",
+ "blocks_suspended": true, "observed_at": "...", "purpose": "detection_sample"}
+```
+
+★★ **Without `blocks_suspended: true`, that number will be mistaken for a verdict.** ★ **Don't write observations into the same field as verdicts** — same field, and they eventually mix regardless of the flag.
+
+★ Generalized: **"not needed for the verdict, so don't compute it" and "not needed for the verdict, so don't record it" are different statements.** A value irrelevant to the verdict may be exactly what training, auditing, or debugging needs.
+
 **★★ Five checks before adding a signal**
 1. **Forgeability** — can the subject simply create it at will?
 2. **Accidental presence** — does it appear on its own via templates, third parties, placeholders?
