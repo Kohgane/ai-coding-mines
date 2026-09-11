@@ -388,3 +388,14 @@ The premise under all of this was **"sessions have no way to share state."** Fal
 ★★★ **Latency in a shared medium is a property of your write policy, not of the medium.** Having the state file **written and pushed periodically** turned "asynchronous, two hours stale" into "near real time."
 
 ★★ This collection already contains an entry where **our own default was read as a platform constraint.** **Same shape — what we believed was a constraint was our own habit.** ★ **Before writing down "that's impossible," ask "have we ever actually tried?"**
+
+★★★ Over half a year this shape has appeared **four** times — **our pipeline's default read as a platform ceiling**, **our estimated cost read as a fixed cost**, **a `404` read as a missing feature**, and **"state sharing is impossible" read as a limit of the medium.** Three of the four were ours and one was theirs, and **all four felt identical.**
+
+★★★ **Without a recorded provenance, your assumption and their constraint are indistinguishable.** → **Write the source next to every constraint you record** — **a platform doc URL, a constant in our code, or our own estimate.** Put all three in the same kind of sentence and **you lose the ability to tell them apart later.**
+
+**★★ Finally, attach the derivation to every derived value**
+Setting the new limits, batch size landed at 600. That 600 **comes from a 280-second task timeout** — a larger batch cannot finish anyway.
+
+★★★ **Whoever changes that timeout will not know 600 needs changing.** When one parameter determines the meaning of several others and **the link is written down nowhere, the derived values do not move with the original.** → Put it beside the value: **`600 = derived from timeout 280s`.** ★ Same rule as this collection's **store the population with the baseline** — **the number alone is not enough; where it came from is part of the value.**
+
+★ And **that timeout has a record.** The same value previously **caused cleanup traps to be skipped** on kill. **The more places hang off a value, the more it sits somewhere easy to change.**
