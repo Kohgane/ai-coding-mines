@@ -652,3 +652,59 @@ The representative option was named `default`. **That name tells a buyer nothing
 2. **Mark the fallback records** — `fallback:single_option`. **Counting them only as "success" severs the trail**
 
 ★★ **Never fold a lossy fallback straight into the success counter.** Without a separate tally you lose any way to know **when to put it right** — if the platform later supports multiple axes, **you won't know which records to fix.**
+
+---
+
+## We picked from the allowed list and still shipped a broken product — passing the schema is not "the right value"
+
+**Symptom**
+The function that auto-filled required attributes was returning `400 invalid option value`. The reason was simple — **that attribute is of a "select" type, so it only accepts values from the allowed-value list the platform returns in its category metadata.** Arbitrary strings get rejected.
+
+So it was fixed to **"take the first item from the allowed list."** The 400s stopped. **And adult footwear got registered with an infant size.**
+
+**Cause**
+The first item is whatever **the sort order puts there.** For a size list, that was the smallest value.
+
+★★★ **Satisfying the constraint and satisfying the meaning are different problems, and only the first one was solved.**
+
+| Layer | Outcome |
+|---|---|
+| **Outside** the allowed list | `400` — **a loud failure.** You know at once |
+| **Inside** the list but semantically wrong | **Passes.** An infant size appears on the customer's screen |
+
+★★★ **The second is the dangerous one.** No error, so nobody knows, and **the only paths to discovery are an order and a return.** It belongs to this collection's **silent failure** family, and **having passed the validator actively provides false reassurance.**
+
+**Fix**
+1. **A final guard in the fill function** — if an allowed list exists, choose **from within it**, and take **the median, not an extreme**
+2. **Validate every SELECT attribute before sending** — ★ **regardless of whether it is required.** An optional attribute with a wrong value reaches the customer just the same
+
+★★ **The median is chosen to "be less wrong when wrong."** First and last items are **the extremes of the distribution**, which is exactly where infant sizes and outsized variants live. **When you don't know the meaning, pick the middle, not an end.**
+
+⚠️ ★★ **The median is still a guess.** If the product's actual specification exists, use it — and if it doesn't, **first ask whether leaving the attribute empty beats filling it wrongly.** A required attribute can't be left empty, but **plenty of optional ones get filled purely out of habit.**
+
+★★★ **There is an option between "never leave it empty" and "put anything in"** — decline to fill and **hand that record to a human.** Making auto-fill coverage a KPI hides that option entirely.
+
+**How to verify**
+★ **After registration, read the value actually displayed on the public product page and compare.** Not the value you sent — **the value shown.** This trap leaves no trace in either the request or the response.
+
+---
+
+## The value we sent is not the value the customer sees — the platform adds to it silently
+
+**Symptom**
+The dispatch-days field held `7`, and we read that as "we promised 7 days." **The live product page was showing 13.**
+
+**Cause**
+The platform **automatically adds 6 days of domestic handling to cross-border items.** It's documented, but **`13` appears nowhere in any response.** A number absent from both request and response is **the only number the customer ever sees.**
+
+★★★ **That field is an input, not a final value.** An item that actually takes two to three weeks, displayed as 13 days, is **structurally late** — and lateness **erodes the seller score and ends in a selling suspension.** It is not a per-item problem.
+
+**Fix**
+**Target the displayed value and work backwards** — `target display − platform addition`. Setting 14 produced the intended 20.
+
+★★★ **When a platform transforms a value for display, verification belongs on the output, not the input.** Our `7` was correct and the customer's `13` was wrong — **you cannot see that either is wrong without looking at both.**
+
+★★ This collection already holds two of the same shape — **a catalog price that was in the store's display currency**, and **a cart quote that was too.** **Every point where "the value we sent" and "the value they display" diverge has to be checked separately.** Getting burned once and fixing it does not make the next field safe.
+
+**How to verify**
+★ **End the registration pipeline with "read the public page once and compare the key displayed values."** Price, delivery days, option names — **the customer's screen is the only answer key.**
