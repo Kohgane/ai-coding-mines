@@ -363,3 +363,28 @@ The two cut hardest were **the notification loop** and **the runaway-prevention 
 ★ **Keep a time series of the values you change.** Oscillation is **invisible in any single reading and obvious in the trend.** A value bouncing between two points is not tuning — **it is two parties fighting.**
 
 ★★ **And periodically measure whether the protection list is actually being honored.** Creating a list and having it work are different facts — **we found out only after 5 of 6 had been broken.**
+
+**★★★ Follow-up — that violation was not a discipline problem, it was a symptom of an impossible target**
+Feeding the protection list into the reduction logic revealed it immediately. **The protected entries alone already consumed 80% of the ceiling.** Honoring the ceiling *and* the list was **impossible from the start.**
+
+★★★ **The other session did not violate the rule because it failed to read it. Even having read it, hitting the target required violating it.**
+
+★★★ **Give an impossible target and a constraint breaks. And the broken constraint is the visible part; the impossible target is not.** While everyone asked **"why wasn't the rule followed?"**, nobody asked **"was that target even reachable?"**
+
+★★ **Two constraints contradicted each other and had never been checked together.** The ceiling lived in an ops document, the protection list in a config file — **kept apart, the contradiction is invisible. Each was reasonable on its own.** → ★★★ **When you add a constraint, verify it is simultaneously satisfiable with the existing ones.**
+
+★ **Which is why auto-restore alone was not enough.** Restoring **reverts the symptom** and does nothing about an impossible target. **What actually fixed it was re-deriving the ceiling, not the restore mechanism.** → ★★ **When you see oscillation, ask "are both objectives simultaneously achievable?" before "who broke the rule?"**
+
+**★★★ And the metric the ceiling was set on turned out to be a proxy**
+Re-dissecting the incident, the cause was not call frequency alone but **frequency × batch size — concurrent execution count.** Low frequency with **a large batch blows up just the same.**
+
+★★★ **Cap a proxy metric and you get both failure modes at once — you miss what you should have stopped, and you stop what you shouldn't have.** Here it **let the large batch through and blocked the protection list.** Same root cause.
+
+★★ **A proxy gets chosen because it is easy to measure, not because it is right.** → **When you gain the means to measure the real thing, move the cap onto it.** We had the guard **log peak concurrency** and **loosened the frequency cap.**
+
+**★★★ Finally — "impossible" turned out to be "we weren't doing it"**
+The premise under all of this was **"sessions have no way to share state."** False. **The shared store was already on the server and every session could read it.** What blocked it was not the medium but **the write schedule** — each session committed **once, at the end**, so work in progress was invisible to everyone.
+
+★★★ **Latency in a shared medium is a property of your write policy, not of the medium.** Having the state file **written and pushed periodically** turned "asynchronous, two hours stale" into "near real time."
+
+★★ This collection already contains an entry where **our own default was read as a platform constraint.** **Same shape — what we believed was a constraint was our own habit.** ★ **Before writing down "that's impossible," ask "have we ever actually tried?"**
