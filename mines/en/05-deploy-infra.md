@@ -572,3 +572,52 @@ The blind spot: "I couldn't see the current file, so I rewrote it from the proto
 `php -l` passes, the key-loading grep matches the original, and one real call on live gets through authentication.
 
 ★ **The delivery mechanism is part of the design.** Correct content moved the wrong way still breaks live. "Print the whole file into chat" is for a human to read, not for a machine to transcribe — a machine gets a link and a verification procedure. Backing up first is not a cost; it's insurance.
+
+---
+
+## Three per-task limits that summed past the global one — and the global one was in the docs all along
+
+**Symptom**
+The scheduler daemon **stopped for three hours.** Concurrent processes had climbed to **32**, past the resource limit.
+
+**Cause 1 — our own limit was a guess**
+A day earlier we had settled on "concurrency limit: 14." **That 14 had no recorded source.** After the incident we looked it up: **the host documents a concurrent-process limit of 20.**
+
+★★★ **This collection holds four cases of "our own default mistaken for a platform constraint." This is precisely the inverse — we never looked for the platform's constraint and invented our own number.**
+
+★★★ **Opposite direction, same result: we operated on a number with no basis.** → **Ask "has the platform already set this limit?" first; estimate only after.** The rule about checking a constraint's provenance runs **both ways.**
+
+**Cause 2 — ★★★ the per-task limits summed past the global limit**
+While recovering, per-task limits were re-derived.
+
+```
+guard 12 + queue 11 + images 8 = 31   >   platform limit 20
+```
+
+★★★ **If all three reach their own limit at once, that is 31.** Each limit is **reasonable for its own task** and **protects the global resource not at all.**
+
+★★ Same shape as this collection's case where **the protection list's total exceeded the overall ceiling.** **Keep constraints apart and the contradiction lives only where they meet — and that place exists in neither the code nor the docs.**
+
+→ **Keep a global counter, or cap the sum of per-task limits at the global limit.** ★ **One assertion is enough.**
+
+```python
+assert sum(per_task_limits.values()) <= PLATFORM_PROCESS_LIMIT
+```
+
+**With that line, the re-derivation would have failed on the spot.**
+
+**Cause 3 — they were all clustered on the same minute**
+Checking the same day: **21–23 of the scheduled jobs fired at `:00` and `:30`.** Offsets spread them to **7 per minute.**
+
+★★ **We had counted 17 the day before and written down the prescription. It was never applied, or they re-clustered.** ★★★ **Writing a prescription and having it applied are different facts** — minute clustering needs **an automated check**. Counting entries of the form `0 * * * *` is one line.
+
+**⚠️ ★★ And the guard did not stop it**
+A runaway-prevention guard was in place and it still reached 32. ★ **When resources are exhausted, diagnostic and defensive tools cannot spawn processes either** — already recorded in this collection.
+
+★★★ **A safeguard that consumes the same resource it protects is absent exactly when it is needed.** → **Check the logs for whether the guard actually ran during the incident window.** "The guard was enabled" **is not evidence that the guard ran.**
+
+**★ Recover in stages**
+Emergency cuts took it down to **4 entries**, then it was walked back up to **7**. ★★ **Restore it all at once and you return to the same state.** Until the cause is confirmed, **observe from the reduced state.**
+
+**How to verify**
+★ Right after any re-derivation, **compare `sum(per-task limits)` against the platform limit in one line**, and **count the entries sharing a minute.** Both are arithmetic, not measurement — **you can check them right now, without an incident.**
