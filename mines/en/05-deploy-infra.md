@@ -621,3 +621,52 @@ Emergency cuts took it down to **4 entries**, then it was walked back up to **7*
 
 **How to verify**
 ★ Right after any re-derivation, **compare `sum(per-task limits)` against the platform limit in one line**, and **count the entries sharing a minute.** Both are arithmetic, not measurement — **you can check them right now, without an incident.**
+
+---
+
+## Three metrics blamed, three times wrong — the real rule was in the documentation
+
+**Symptom**
+The scheduler daemon was blocked twice in one day. **Three hours**, then **fifty minutes.**
+
+**The causes we named**
+```
+① entry count  →  ② runs per hour  →  ③ concurrent processes  →  ④ (actual) minimum interval
+```
+
+**Shared hosting caps the minimum interval between scheduled runs at 15 minutes.** `*/5`, `*/6`, `*/10` are **unsupported, and using them gets the daemon blocked.** Every metric we had built over three rounds was **an effect, not the cause.**
+
+**★★★ Why all three looked right — the four axes are correlated**
+A `*/5` entry is **simultaneously** high in count, high in rate, high in concurrency, and short in interval. **Pick any of them as the cause and the data fits.**
+
+★★★ **Among correlated candidates, observational data cannot choose.** What is required is **an intervention that moves exactly one axis**, or **the documentation.**
+
+★★★ **And our intervention — cutting everything — lowered all four together.** Things improved every time, and **we still had no idea which change earned it.** Discriminating would have meant something like **holding the rate constant while widening the interval.**
+
+★★★ **When candidates are correlated, the feeling of "evidence accumulating" reinforces the wrong diagnosis.** Every adjustment made the symptom better, and each one **confirmed a false hypothesis.**
+
+**★★★ And decisively — all three of ours were "things we can measure"**
+Count, rate, concurrency are **values you get by looking inside your own system.** The minimum interval is **a rule the other party set**, and your system contains no trace of it.
+
+★★★ **Search for causes only along measurable axes and the other party's rules stay permanently invisible.** → **"Our observations" and "their documentation" are different kinds of evidence. No amount of the former substitutes for the latter.**
+
+★★ This collection holds four cases of **our own default mistaken for a platform constraint.** This is **the second case in the opposite direction** — **never looking for the real constraint and reasoning from home-grown metrics instead.** Both directions cost the same.
+
+**⚠️ ★★ The violation signal was a block, not an error**
+Using an unsupported interval **produces no error. It produces a quiet block later.** ★★★ **Errors tell you immediately; blocks do not.** That delay between cause and symptom means **whatever you changed in between looks like the culprit.**
+
+**⚠️ ★★★ And fixing it does not restore service immediately**
+The intervals were brought into compliance and **the block did not lift right away.** With punitive blocks, **removing the cause and clearing the penalty are separate events.**
+
+★★ Worse than this collection's **"removing the cause does not remove the symptom"** — there you wait for already-spawned work to finish; **here you wait for someone else to release you.** **Concluding "it isn't fixed" and intervening further makes it worse.** ★ **Some windows call for waiting, not retrying.**
+
+**⚠️ ★★ The emergency workaround becomes the next incident**
+During the block we substituted **a shell loop** (guarded to run only when process count is below a threshold). It works, but two things are easy to miss.
+
+1. ★★ **A long-running loop occupies a process slot permanently.** It **must** be counted in the global limit
+2. ★★★ **A shell loop dies once and stays dead.** The scheduler respawns on the next tick; **the loop does not, and nobody notices**
+
+★ **And decide up front how it gets turned off after normal service returns.** **An emergency measure left running becomes the cause of the next incident.**
+
+**How to verify**
+★ **Find the supported minimum interval, maximum entry count, and concurrent-process limit in the hosting documentation, put them in one file, and diff every schedule change against it.** We read that documentation **only after being blocked twice.**
