@@ -670,3 +670,47 @@ During the block we substituted **a shell loop** (guarded to run only when proce
 
 **How to verify**
 ★ **Find the supported minimum interval, maximum entry count, and concurrent-process limit in the hosting documentation, put them in one file, and diff every schedule change against it.** We read that documentation **only after being blocked twice.**
+
+---
+
+## Stopped fighting the limit and moved to a different resource pool — and three things came with it
+
+**Background**
+A shared-hosting scheduler was blocked twice by resource policy. We found the rules and complied, and **the policy is still theirs to change at will.** So we stopped fixing it and **stopped using it** — an external scheduler now calls a web endpoint on our server.
+
+★★★ **Web requests live in a different resource pool, so that block does not apply.** We did not break through the limit; **we moved to where the limit isn't.** Same shape as this collection's **unblocking something and making it unnecessary are different tools.**
+
+★★ **If a resource can block you again after you follow every rule, compliance may be the wrong answer and departure the right one.** The test is **"do we control that rule?"**
+
+**★★ But three things follow.**
+
+**★★★ ① A capped timeout — solve it by "not waiting," not by "finishing faster"**
+The external scheduler's request timeout is fixed at 30 seconds and cannot be raised. Queue jobs take minutes. → **The endpoint hands the work to the background and answers immediately** (0.04s).
+
+★★★ **⚠️ But an immediate answer manufactures a silent failure.** The scheduler receives `200` and **records success.** The actual job may have failed. **Exactly the same structure as this collection's "logging completion from the response alone"** — except here **it is by design**, which makes it harder to notice.
+
+★★ **Call success rate tells you nothing.** → **Have the job record its own completion time, and monitor that record's freshness.** `"alert if the last completion is older than N minutes"` — what needs watching is **completion, not invocation.**
+
+**★★★ ② The same script observed from a different call path yields different numbers**
+A gate refused to run when the process count was too high. **Invoked over the web, the baseline reading came in at twice what the shell had measured** — the shell-derived threshold became **a value that always blocks.** Every gate had to be re-derived.
+
+★★★ **One metric name was counting two different populations.** → **Write down which path a gate value was measured from, next to the value.** Same rule as this collection's **store the population with the baseline.**
+
+⚠️ ★ And **check whether the new pool's limit is the same limit as the old one.** An unrelated separate ceiling, or **the same ceiling counted differently** — the two lead to completely different conclusions.
+
+**⚠️ ★★★ ③ You are now coupled to an external service — you need a dead-man switch**
+Order notifications now depend on **an external SaaS being up.** If it stops, notifications stop and **we receive no signal at all.**
+
+★★ **An "something external calls us" design fails toward silence.** → **Keep a minimal internal schedule whose only job is "alert if no external call has arrived in N minutes."** We left a few auxiliary internal entries to serve exactly that.
+
+**⚠️ ★★★ Finally — don't put the token in the query string**
+It is easy to build the endpoint as `run.php?t=<token>&j=<job>`. **That token then sits in plaintext in at least four places.**
+
+1. **Server access logs**
+2. **The `Referer` header** — it leaves with any external resource that page references
+3. **The external scheduler's dashboard and its failure-notification emails** — the full URL is displayed
+4. **Browser history** — one manual test is enough
+
+★ **Move it to a `POST` body or a custom header.** Most scheduler services support both. If that must wait, at minimum: **per-job tokens, a rotation schedule, and an IP allowlist.**
+
+⚠️ ★ **And that endpoint lives under a web-served path.** **Confirm directory listing is off and that no editing leftovers like `run.php.bak` exist** — **a backup saved with a non-executing extension serves the source verbatim.**

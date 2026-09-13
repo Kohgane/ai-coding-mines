@@ -403,3 +403,42 @@ Two processes were long-polling (`getUpdates`-style) on the **same bot token**. 
 
 **★ Attach reasons to a zero result**
 For automation you drive remotely from a single screen, **a response that only says "no matches" leaves you unable to choose the next action** — you cannot tell an already-processed input from a genuine miss. **Returning zero is exactly when you owe the caller the why.**
+
+---
+
+## Flipping one feature switch turned off an unrelated feature too
+
+**Symptom**
+A switch file was created to disable one collector. **An unrelated restart job stopped as well.** The two have nothing to do with each other.
+
+**Cause**
+Inside one script, unrelated features **shared the same `exit` path**.
+
+```bash
+[ -f .amz_off ] && exit 0      # switch for collector A
+run_collector_a
+run_restart_job                 # ← sits below, so it dies too
+```
+
+★★★ **When unrelated features share an `exit` path, turning one off turns both off.**
+
+**★★ And whoever flipped it believes only one thing was disabled**
+★★★ **The intended thing was disabled exactly as expected, so verification passes.** The unintended casualty **emits no signal at all.** The log says `"disabled collector A"`; **nothing anywhere says "and the restart job."**
+
+**★ Why it keeps happening**
+Switches are typically written as **`if off: exit` at the top of the file.** Everything below becomes **subordinate to that switch**, and the person adding the switch does not look at what is below.
+
+★★ **And new features get appended to the end of the file, so over time that one switch at the top disables more and more.** It was genuinely accurate the day it was written.
+
+**Fix**
+★ **Write a feature switch as a condition around its own block, not as an `exit`.**
+
+```bash
+[ -f .amz_off ] || run_collector_a
+[ -f .wc_off  ] || run_restart_job
+```
+
+**How to verify**
+★★ **Before flipping a switch, look at what lives below it.** And ★★★ **verify the result feature by feature** — not **"did the intended thing stop?"** but **"is the unintended thing still running?"** Check only the former and it always passes.
+
+★ The same shape is already in this collection — **when the first stage of a fallback chain `continue`s, every later stage dies.** **An early exit speaks for everything beneath it.**
