@@ -714,3 +714,68 @@ It is easy to build the endpoint as `run.php?t=<token>&j=<job>`. **That token th
 ★ **Move it to a `POST` body or a custom header.** Most scheduler services support both. If that must wait, at minimum: **per-job tokens, a rotation schedule, and an IP allowlist.**
 
 ⚠️ ★ **And that endpoint lives under a web-served path.** **Confirm directory listing is off and that no editing leftovers like `run.php.bak` exist** — **a backup saved with a non-executing extension serves the source verbatim.**
+
+---
+
+## Silence monitoring must watch something written unconditionally — and it only catches silence
+
+**Background**
+After switching to "hand the work to the background and answer immediately," call success rates guaranteed nothing. So monitoring was set on **"was the log file updated within N minutes?"**
+
+**Trap ① — the watched log was written only conditionally**
+The first choice was the **job log.** But that log is written **only when there is something to process.** Zero new items and it writes nothing at all. → **Quiet periods got reported as outages.**
+
+★★★ **A log that records "something happened" and a log that records "it ran" are different things.** Monitor the second using the first and **you get alerts precisely when everything is fine.**
+
+★★ **And repeated false alarms get the alert turned off.** The real silence that arrives afterwards goes unseen — the same place as this collection's **repeated notifications make notifications meaningless.**
+
+→ ★ **A heartbeat writes one line on entry, unconditionally, regardless of the work's outcome.** Monitor that line.
+
+**Trap ② — ★★★ but a heartbeat only catches silence**
+If the log is written unconditionally, **it is written when the job fails too.** ★★★ **You know "it ran"; you do not know "it succeeded."** A backgrounded job dying quietly is **still invisible.**
+
+→ **Split it into two layers.**
+
+| Layer | Watches | Catches |
+|---|---|---|
+| ① Heartbeat | entry log's update time | **invocation stopped** |
+| ② Completion record | what the job writes at the end | **the job failed or was cut short** |
+
+★★ **Without ②, "invoked exactly every ten minutes and accomplishing nothing" looks perfectly healthy.**
+
+★ Record **item counts** in the completion record. But ⚠️ **do not turn a run of zeros straight into an alert** — that is trap ① again. **There are hours where zero is correct.** Read it as **a trend**, not an alarm.
+
+**★★ The monitor must live on a different resource than what it monitors**
+Moving scheduling to an external service **flips the failure mode to silence.** When you call out, failure arrives as **an error**; when something external calls you, failure arrives as **nothing at all.**
+
+★★★ **Move a resource outside and move its monitoring with it — let the outside watch what you gave to the outside and both die together.** Keep a minimal dead-man switch inside. ★ Same principle as this collection's **an emergency measure that consumes normal resources is unavailable in an emergency.**
+
+---
+
+## A migration is not "add it in the new place" — it is "remove it from the old place"
+
+**Symptom**
+Schedules were moved to an external service and confirmed working. **Five identical entries were still sitting in the old scheduler.** Notifications went out twice and queue jobs overlapped.
+
+**Why you stop early**
+★★ **Adding shows an immediate effect; removing shows none.** The moment the new path is confirmed running, **the job feels finished.**
+
+★★★ **And duplication does not look like a fault.** Two notifications is **excess function**, not an error. There is nothing in the logs. **The only discovery path is somebody wondering "why did this arrive twice?"**
+
+**⚠️ ★★★ And the auto-restore mechanism puts the removal back**
+The old scheduler had **protection-list-based auto-restore** on it. A deleted line still present in that list **comes back on the next pass.**
+
+★★★ **Auto-restore pins down "what the canonical state is." When the canonical state changes, the restorer has to hear about it first.**
+
+★★ One more in this collection's **a safeguard creates the next trap** family — but a different shape. **The earlier ones had the safeguard creating a trap or switching itself off; this time it worked exactly as designed and that was the problem.**
+
+★★★ **In a system with a restoring mechanism, every change is two changes — the target and the baseline.**
+
+**Migration checklist**
+1. Add in the new place
+2. Confirm it works
+3. ★ **Remove from the old place**
+4. ★★ **Update the baseline in every restore/monitor mechanism**
+5. ★ **Measure that there is no duplication** — notification counts, execution counts in the logs
+
+★ Skip 4 and **yesterday's defense blocks today's change, and finding out why costs time.**
