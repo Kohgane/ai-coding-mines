@@ -399,3 +399,33 @@ Setting the new limits, batch size landed at 600. That 600 **comes from a 280-se
 ★★★ **Whoever changes that timeout will not know 600 needs changing.** When one parameter determines the meaning of several others and **the link is written down nowhere, the derived values do not move with the original.** → Put it beside the value: **`600 = derived from timeout 280s`.** ★ Same rule as this collection's **store the population with the baseline** — **the number alone is not enough; where it came from is part of the value.**
 
 ★ And **that timeout has a record.** The same value previously **caused cleanup traps to be skipped** on kill. **The more places hang off a value, the more it sits somewhere easy to change.**
+
+---
+
+## An incident from two days earlier hijacked the diagnosis
+
+**Symptom**
+Notifications stopped arriving for one account. We concluded **"the API key expired."** Two days earlier, **that key had genuinely expired.**
+
+**Reality**
+Hitting the read API returned **`HTTP 200`. The key was alive.** The real cause was **a file left behind during a migration.**
+
+★★★ **When symptoms resemble a past incident, you reuse that incident's cause — and the more recent it is, the harder it hijacks.**
+
+★★ **This misdiagnosis gets more common as experience accumulates.** Not because there are more candidates — **because a plausible candidate arrives so fast that the search stops early.** A beginner doesn't know, so they check; an expert feels they know, so they don't.
+
+★★ This collection already holds three of the same family — **filling in a blank rejection reason with a reason we knew**, **assuming one batch means one cause**, and **the same error string appearing four times with four different causes.** This one is **reuse of last time's cause.**
+
+**⚠️ ★★★ And a wrong cause produces a wrong action, whose failure deepens the confusion**
+Reissuing the key would have **left the notifications still missing.** At that point it becomes **"we reissued and it still doesn't work,"** which is further from the truth than where we started.
+
+★★ **When an action fails, people usually doubt the action, not the hypothesis.** They reissue again, check permissions, wait for propagation — **all on a wrong branch.**
+
+★ And **that action had a cost.** In the environment at the time, reissuing was only possible days later. **The wait a wrong diagnosis creates hides the real problem for its whole duration.**
+
+**Fix**
+★★★ **Confirm in one line before concluding.** Hitting the read API takes ten seconds.
+
+★★ **The reason people skip a ten-second check is not time — it is confidence.** → Invert the rule: **the stronger the "it's obviously that" feeling, the more the check is required.** Confidence is **a signal demanding verification, not an exemption from it.**
+
+★ **And record the result of the check.** The fact that **"we saw a 200"** becomes the starting point for the next diagnosis — unwritten, the next person spends the same ten seconds again, or makes the same assumption again.

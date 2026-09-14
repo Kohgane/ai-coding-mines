@@ -772,10 +772,26 @@ The old scheduler had **protection-list-based auto-restore** on it. A deleted li
 ★★★ **In a system with a restoring mechanism, every change is two changes — the target and the baseline.**
 
 **Migration checklist**
+0. ★★★ **`grep` out every file that implements the thing you are moving**
 1. Add in the new place
 2. Confirm it works
 3. ★ **Remove from the old place**
 4. ★★ **Update the baseline in every restore/monitor mechanism**
 5. ★ **Measure that there is no duplication** — notification counts, execution counts in the logs
+6. ★★ **Measure that there is no omission** — diff step 0's list against what is registered in the new place
 
 ★ Skip 4 and **yesterday's defense blocks today's change, and finding out why costs time.**
+
+**⚠️ ★★★ Follow-up — the first version of this checklist had no step 0 or 6, and an omission happened right there**
+The same migration produced **duplication and omission at once.** Five entries left behind in the old place caused **duplication**; one account's implementation lived in **a separate file**, never made it to the new place, and caused an **omission**.
+
+★★★ **Opposite symptoms, one cause — we never counted the implementation files.** We knew what we were moving **by its feature name**, and that feature was **two files.**
+
+★★★ **The unit of migration is the file list, not the feature name.** ★ Filename suffixes (`_v2`, `_new`, an account or environment name) are **very likely siblings of the same feature.** Counting them is step 0.
+
+**★★★ And omission is far less visible than duplication**
+Duplication announces itself as **"why did this arrive twice?"** Omission **produces nothing at all.** If the affected target is naturally infrequent, it is **indistinguishable from a normal quiet spell** — exactly the wall described in the "zero is sometimes correct" entry above.
+
+★★ **So step 6 must be a diff, not an observation.** Don't wait for something to arrive in the new place — **put step 0's list and the new registration list side by side and match the counts.**
+
+★ The root was **building a per-account variant by copying the file.** **A variant made by copying breaks the feature boundary** — fix one and the other stays unfixed, and without a list you forget it exists at all. Keep the difference in **an argument or a config value**, not a file.
