@@ -795,3 +795,85 @@ Duplication announces itself as **"why did this arrive twice?"** Omission **prod
 ★★ **So step 6 must be a diff, not an observation.** Don't wait for something to arrive in the new place — **put step 0's list and the new registration list side by side and match the counts.**
 
 ★ The root was **building a per-account variant by copying the file.** **A variant made by copying breaks the feature boundary** — fix one and the other stays unfixed, and without a list you forget it exists at all. Keep the difference in **an argument or a config value**, not a file.
+
+---
+
+## The denominator for migration verification is the old list, not the new one — and the old list dies with the migration
+
+**Symptom**
+Schedules were moved to an external service and the new side was confirmed fully running. **Days later, four jobs that never made the move were quietly dead.** The oldest had been down **six days**; the next, **3.6**.
+
+**Cause**
+★ **What moved leaves log entries; what didn't move leaves nothing at all.** And we counted **"what is running in the new place."**
+
+★★★ **With the new list as the denominator the answer is always 100%.** The proposition that calculation confirms is **"everything we registered is running"** — and **that proposition says nothing about omissions.** The denominator has to be **the old list.**
+
+**⚠️ ★★★ But the old list disappears along with the migration**
+Once the old schedule is deleted, **there is no way to know what was in it.** ★★★ **The evidence is deleted together with the thing, so after-the-fact reconciliation is impossible in principle.**
+
+→ **Dump the list to a file in one line before you start.**
+
+```bash
+crontab -l > cron_before_$(date +%F).txt
+```
+
+★ **It is not only the reconciliation baseline — it is the only restore path you have.**
+
+**★★★ And the jobs that died happened to be the ones where silence is normal**
+Three of the four were **monitors** — a stock watcher, a trust check, a periodic report. **The kind that send nothing when nothing is wrong.**
+
+★★★ **A periodic report failing to arrive reads as "I guess there was nothing to report."** When it arrives you read it; **when it doesn't, you read nothing.** A dead monitor looks **exactly like the healthy state it was monitoring for.**
+
+→ ★★★ **Make monitors report "nothing wrong" too.** Weekly if every run is too noisy. **Express health as silence and you cannot tell it from death.**
+
+★ **And the cost of silence scales with time.** Six days of a dead stock watcher means **six days of restocks missed.** Late discovery grows not the loss but **the accumulation of it.**
+
+---
+
+## A rejection is an event — unlogged, the rejected side is pure silence
+
+**Symptom**
+After an authentication change, **one job was being rejected continuously.** The rest were fine, so **the whole looked healthy.**
+
+**Cause**
+The endpoint returned `403` and **recorded nothing.** The caller (an external scheduler) kept the failure on its own dashboard, and on the server side **there was no trace that the job had even been attempted.**
+
+★★★ **A rejection is not "nothing happened" — it is an event.** Unlogged, **the rejected party becomes completely silent.**
+
+**Fix**
+```
+[AUTH-FAIL] job=<name> token_prefix=<first 10> src_ip=<origin>
+```
+
+★ **Log only the token's prefix.** Print the whole thing and **the work of getting the token out of the URL comes back through the logs.**
+★★ **The key field is `job`.** "Which job was rejected" is the diagnosis; the token fragment is **a narrowing aid.**
+
+**★★ Partial failure dissolves into the average**
+One of five jobs dying still reads as **"80% success"** — not an alert. ★★★ **Averages dissolve partial failure.** → **Look per job.** The same applies to the completion records in the entry above: **lump them into one and the problem reappears.**
+
+**★★★ And rejection logs double as intrusion detection**
+That endpoint is **publicly reachable.** Without rejection logs, **our own misconfiguration and someone else's probing are equally invisible.**
+
+★ **A sudden rise in `AUTH-FAIL` is not a configuration problem — it is something else.** → **Log the source IP too.** Our scheduler's address is fixed, so **one line separates them.**
+
+---
+
+## Mark test data — the mark can only be applied when you create it
+
+**Symptom**
+A test record created to exercise notifications became **"what is this?" a few days later.** The person who made it could not tell by looking.
+
+★★★ **A mark can only be applied at creation time. Later, nobody knows which records were tests.** ★★ **Even your own are forgotten within days — a mark that depends on memory is not a mark.**
+
+**★★ Without one, you err in both directions**
+
+| | Result |
+|---|---|
+| Test read as real | you try to process a fake record |
+| Real read as test | ★★★ **you ignore a genuine one** |
+
+★★★ **The second is far worse.** `"That's probably the test from before"` runs on exactly the same circuit as this collection's **reusing last time's cause for a similar symptom.**
+
+**Fix**
+★ **Put `[TEST]` in a free-text field at creation.** If there is no such field, **record the IDs in a separate file.**
+★★ **And a mark is only half of a pair — the cleanup procedure is the other half.** Leave the mark and the data alive and **"it's marked as a test, so why is it still here?" becomes the next question.**
